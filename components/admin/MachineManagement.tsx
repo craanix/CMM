@@ -7,7 +7,7 @@ import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 const StatusBadge: React.FC<{ status: MachineStatus }> = ({ status }) => {
     const statusStyles: Record<MachineStatus, { text: string; bg: string; textColor: string; }> = {
         [MachineStatus.OK]: { text: 'В работе', bg: 'bg-status-ok/10', textColor: 'text-status-ok' },
-        [MachineStatus.WARNING]: { text: 'Внимание', bg: 'bg-status-warning/10', textColor: 'text-status-warning' },
+        [MachineStatus.WARNING]: { text: 'Требует внимания', bg: 'bg-status-warning/10', textColor: 'text-status-warning' },
         [MachineStatus.ERROR]: { text: 'Неисправен', bg: 'bg-status-error/10', textColor: 'text-status-error' },
     };
     const style = statusStyles[status] || statusStyles.OK;
@@ -26,6 +26,7 @@ const MachineManagement: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentMachine, setCurrentMachine] = useState<Machine | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<MachineStatus | ''>('');
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -68,13 +69,25 @@ const MachineManagement: React.FC = () => {
     };
 
     const filteredMachines = useMemo(() => {
-        if (!searchTerm) return machines;
-        const lowercasedFilter = searchTerm.toLowerCase().trim();
-        return machines.filter(machine =>
-            machine.name.toLowerCase().includes(lowercasedFilter) ||
-            machine.serialNumber.toLowerCase().includes(lowercasedFilter)
-        );
-    }, [machines, searchTerm]);
+        return machines.filter(machine => {
+            // Status filter
+            if (statusFilter && machine.status !== statusFilter) {
+                return false;
+            }
+
+            // Search term filter
+            if (searchTerm) {
+                const lowercasedFilter = searchTerm.toLowerCase().trim();
+                const nameMatch = machine.name.toLowerCase().includes(lowercasedFilter);
+                const serialMatch = machine.serialNumber.toLowerCase().includes(lowercasedFilter);
+                if (!nameMatch && !serialMatch) {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+    }, [machines, searchTerm, statusFilter]);
 
     const getRegionName = (regionId: string) => regions.find(r => r.id === regionId)?.name || 'N/A';
     const getPointName = (pointId: string | null) => pointId ? (points.find(p => p.id === pointId)?.name || 'N/A') : 'Без привязки';
@@ -98,15 +111,31 @@ const MachineManagement: React.FC = () => {
                     Добавить аппарат
                 </button>
             </div>
-            <div className="mb-4 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                    type="text"
-                    placeholder="Поиск по названию или S/N..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-brand-secondary focus:border-brand-secondary bg-white text-brand-primary placeholder-gray-500"
-                />
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                <div className="relative flex-grow">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                        type="text"
+                        placeholder="Поиск по названию или S/N..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-brand-secondary focus:border-brand-secondary bg-white text-brand-primary placeholder-gray-500"
+                    />
+                </div>
+                <div className="sm:w-auto sm:min-w-[200px]">
+                    <select
+                        id="statusFilter"
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value as MachineStatus | '')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-brand-secondary focus:border-brand-secondary bg-white text-brand-primary"
+                        aria-label="Фильтр по статусу"
+                    >
+                        <option value="">Все статусы</option>
+                        <option value={MachineStatus.OK}>В работе</option>
+                        <option value={MachineStatus.WARNING}>Требует внимания</option>
+                        <option value={MachineStatus.ERROR}>Неисправен</option>
+                    </select>
+                </div>
             </div>
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">

@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import * as api from '../../services/api';
 import type { Region, Point, Machine, User, MaintenanceRecord, Part } from '../../types';
 import { Role } from '../../types';
-import { FileText, Filter, Printer, RefreshCw, Calendar, User as UserIcon, MapPin, Building, Coffee as CoffeeIcon, Wrench, X } from 'lucide-react';
+import { FileText, Filter, Printer, RefreshCw, Calendar, User as UserIcon, MapPin, Building, Coffee as CoffeeIcon, Wrench } from 'lucide-react';
 
 // Define a type for the combined data
 interface AllData {
@@ -29,13 +29,14 @@ const ReportsScreen: React.FC = () => {
         pointId: '',
         machineId: '',
     });
+
+    const [searchTerms, setSearchTerms] = useState({
+        user: '',
+        point: '',
+        machine: '',
+    });
     
     const [filteredRecords, setFilteredRecords] = useState<MaintenanceRecord[] | null>(null);
-
-    // Search input states
-    const [userSearch, setUserSearch] = useState('');
-    const [pointSearch, setPointSearch] = useState('');
-    const [machineSearch, setMachineSearch] = useState('');
 
     const startDateRef = useRef<HTMLInputElement>(null);
     const endDateRef = useRef<HTMLInputElement>(null);
@@ -45,7 +46,6 @@ const ReportsScreen: React.FC = () => {
             if (user) {
                 setLoading(true);
                 const result = await api.getAllDataForUser(user);
-                // Ensure all parts are loaded, especially for technicians
                 const allParts = await api.getAllParts();
                 setAllData({ ...result, parts: allParts });
                 setLoading(false);
@@ -54,29 +54,50 @@ const ReportsScreen: React.FC = () => {
         fetchData();
     }, [user]);
 
-    const getEntityName = (id: string | null, type: 'user' | 'machine' | 'point' | 'region' | 'part' | 'machineWithSN') => {
+    const getEntityName = (id: string | null, type: 'user' | 'machine' | 'point' | 'region' | 'part') => {
         if (!id || !allData) return '';
         switch (type) {
             case 'user': return allData.users.find(u => u.id === id)?.name || '';
-            case 'machine': return allData.machines.find(m => m.id === id)?.name || '';
+            case 'machine': 
+                const machine = allData.machines.find(m => m.id === id);
+                return machine ? `${machine.name} (SN: ${machine.serialNumber})` : '';
             case 'point': return allData.points.find(p => p.id === id)?.name || '';
             case 'region': return allData.regions.find(r => r.id === id)?.name || '';
             case 'part': return allData.parts.find(p => p.id === id)?.name || '';
-            case 'machineWithSN': {
-                const machine = allData.machines.find(m => m.id === id);
-                return machine ? `${machine.name} (SN: ${machine.serialNumber})` : '';
-            }
             default: return '';
         }
     };
-    
-    // Sync search inputs with filter state
-    useEffect(() => {
-        setUserSearch(getEntityName(filters.userId, 'user'));
-        setPointSearch(getEntityName(filters.pointId, 'point'));
-        setMachineSearch(getEntityName(filters.machineId, 'machineWithSN'));
-    }, [filters.userId, filters.pointId, filters.machineId, allData]);
 
+    const { availableUsers, availableRegions, availablePoints, availableMachines } = useMemo(() => {
+        if (!allData) return { availableUsers: [], availableRegions: [], availablePoints: [], availableMachines: [] };
+
+        const availableRegions = user?.role === Role.ADMIN ? allData.regions : allData.regions.filter(r => r.id === user?.regionId);
+        const effectiveRegionId = filters.regionId || (user?.role === Role.TECHNICIAN ? user.regionId : null);
+
+        let availableUsers = allData.users.filter(u => u.role === Role.TECHNICIAN);
+        let availablePoints = allData.points;
+        let availableMachines = allData.machines;
+
+        if (effectiveRegionId) {
+            availableUsers = availableUsers.filter(u => u.regionId === effectiveRegionId);
+            availablePoints = availablePoints.filter(p => p.regionId === effectiveRegionId);
+            availableMachines = availableMachines.filter(m => m.regionId === effectiveRegionId);
+        }
+
+        if (filters.pointId) {
+            availableMachines = availableMachines.filter(m => m.pointId === filters.pointId);
+        }
+
+        return { availableUsers, availableRegions, availablePoints, availableMachines };
+    }, [allData, user, filters.regionId, filters.pointId]);
+
+    useEffect(() => {
+        setSearchTerms({
+            user: getEntityName(filters.userId, 'user'),
+            point: getEntityName(filters.pointId, 'point'),
+            machine: getEntityName(filters.machineId, 'machine'),
+        });
+    }, [filters.userId, filters.pointId, filters.machineId, allData]);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -86,66 +107,30 @@ const ReportsScreen: React.FC = () => {
                 newFilters.pointId = '';
                 newFilters.machineId = '';
             }
-            if (name === 'pointId') {
-                newFilters.machineId = '';
-            }
             return newFilters;
         });
     };
     
-    // Memoized lists for dropdowns to prevent recalculations on every render
-    const { availableUsers, availableRegions, availablePoints, availableMachines } = useMemo(() => {
-        if (!allData) return { availableUsers: [], availableRegions: [], availablePoints: [], availableMachines: [] };
-
-        const availableRegions = user?.role === Role.ADMIN ? allData.regions : allData.regions.filter(r => r.id === user?.regionId);
-
-        // Determine the base region to filter by (either the selected filter or the tech's own region)
-        const effectiveRegionId = filters.regionId || (user?.role === Role.TECHNICIAN ? user.regionId : null);
-
-        let availableUsers = allData.users.filter(u => u.role === Role.TECHNICIAN);
-        let availablePoints = allData.points;
-        let availableMachines = allData.machines;
-
-        // If an effective region is determined, filter all dependent lists by it.
-        if (effectiveRegionId) {
-            availableUsers = availableUsers.filter(u => u.regionId === effectiveRegionId);
-            availablePoints = availablePoints.filter(p => p.regionId === effectiveRegionId);
-            availableMachines = availableMachines.filter(m => m.regionId === effectiveRegionId);
-        }
-
-        // If a point is selected, further filter the (already region-filtered) machines.
-        if (filters.pointId) {
-            availableMachines = availableMachines.filter(m => m.pointId === filters.pointId);
-        }
-
-        return { availableUsers, availableRegions, availablePoints, availableMachines };
-    }, [allData, user, filters.regionId, filters.pointId]);
-
-    const handleTextFilterChange = (
-        filterName: 'userId' | 'pointId' | 'machineId',
-        textValue: string
-    ) => {
-        if (filterName === 'userId') setUserSearch(textValue);
-        if (filterName === 'pointId') setPointSearch(textValue);
-        if (filterName === 'machineId') setMachineSearch(textValue);
-
-        let selectedId = '';
-        if (textValue) {
-            if (filterName === 'userId') {
-                selectedId = availableUsers.find(u => u.name === textValue)?.id || '';
-            }
-            if (filterName === 'pointId') {
-                selectedId = availablePoints.find(p => p.name === textValue)?.id || '';
-            }
-            if (filterName === 'machineId') {
-                selectedId = availableMachines.find(m => `${m.name} (SN: ${m.serialNumber})` === textValue)?.id || '';
-            }
-        }
+    const handleSearchableChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target; // name: 'user', 'point', 'machine'
         
+        setSearchTerms(prev => ({ ...prev, [name]: value }));
+        
+        let foundId = '';
+        if (value === '') {
+             foundId = '';
+        } else if (name === 'user') {
+            foundId = availableUsers.find(u => u.name === value)?.id || '';
+        } else if (name === 'point') {
+            foundId = availablePoints.find(p => p.name === value)?.id || '';
+        } else if (name === 'machine') {
+            foundId = availableMachines.find(m => `${m.name} (SN: ${m.serialNumber})` === value)?.id || '';
+        }
+
         setFilters(prev => {
-            const newFilters = { ...prev, [filterName]: selectedId };
-            if (filterName === 'pointId' && !selectedId) {
-                newFilters.machineId = ''; // Clear machine if point is cleared
+            const newFilters = { ...prev, [`${name}Id`]: foundId };
+            if (name === 'point' && prev.pointId !== foundId) {
+                newFilters.machineId = '';
             }
             return newFilters;
         });
@@ -156,7 +141,6 @@ const ReportsScreen: React.FC = () => {
 
         let records = allData.maintenanceRecords;
 
-        // Date filtering
         if (filters.startDate) {
             const startDate = new Date(`${filters.startDate}T00:00:00`);
             records = records.filter(r => new Date(r.timestamp) >= startDate);
@@ -166,14 +150,11 @@ const ReportsScreen: React.FC = () => {
             records = records.filter(r => new Date(r.timestamp) <= endDate);
         }
 
-        // User filtering
         if (filters.userId) {
             records = records.filter(r => r.userId === filters.userId);
         }
 
-        // Machine, Point, Region filtering (hierarchical)
         let machineIdsToFilter: Set<string> | null = null;
-
         if (filters.machineId) {
             machineIdsToFilter = new Set([filters.machineId]);
         } else if (filters.pointId) {
@@ -208,6 +189,7 @@ const ReportsScreen: React.FC = () => {
     const getMachineInfo = (machineId: string) => {
         const machine = allData?.machines.find(m => m.id === machineId);
         if (!machine) return { name: 'N/A', sn: 'N/A', point: 'N/A', region: 'N/A' };
+        const fullPartName = (partId: string) => getEntityName(partId, 'part');
         return {
             name: machine.name,
             sn: machine.serialNumber,
@@ -215,7 +197,21 @@ const ReportsScreen: React.FC = () => {
             region: getEntityName(machine.regionId, 'region'),
         }
     }
-
+    
+    const generateReportSummary = (): string => {
+        if (!filteredRecords) return '';
+        const parts: string[] = [];
+        if (filters.startDate) parts.push(`с ${new Date(filters.startDate).toLocaleDateString('ru-RU')}`);
+        if (filters.endDate) parts.push(`по ${new Date(filters.endDate).toLocaleDateString('ru-RU')}`);
+        if (filters.regionId) parts.push(`регион: "${getEntityName(filters.regionId, 'region')}"`);
+        if (filters.pointId) parts.push(`точка: "${searchTerms.point}"`);
+        if (filters.machineId) parts.push(`аппарат: "${searchTerms.machine}"`);
+        if (filters.userId) parts.push(`техник: "${searchTerms.user}"`);
+        
+        if (parts.length === 0) return 'Показаны все записи';
+    
+        return `Фильтры: ${parts.join(', ')}`;
+    }
 
     if (loading) {
         return (
@@ -225,7 +221,7 @@ const ReportsScreen: React.FC = () => {
         );
     }
     
-    const inputClasses = "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-brand-primary placeholder-gray-500 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm";
+    const inputClasses = "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-brand-primary placeholder-gray-500 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed";
     
     return (
         <div className="container mx-auto max-w-6xl">
@@ -237,64 +233,22 @@ const ReportsScreen: React.FC = () => {
             <div className="p-4 sm:p-6 bg-white rounded-lg shadow-md mb-6 no-print">
                  <h2 className="text-xl font-bold text-brand-primary mb-4 flex items-center gap-2"><Filter className="w-5 h-5"/>Параметры отчёта</h2>
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Date Filters */}
                     <div className="cursor-pointer" onClick={() => startDateRef.current?.showPicker()}>
                         <label htmlFor="startDate" className="block text-sm font-medium text-brand-primary">Начало периода</label>
-                        <input
-                            ref={startDateRef}
-                            id="startDate"
-                            type="date"
-                            name="startDate"
-                            value={filters.startDate}
-                            onChange={handleFilterChange}
-                            onKeyDown={(e) => e.preventDefault()}
-                            className={inputClasses}
-                        />
+                        <input ref={startDateRef} id="startDate" type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} onKeyDown={(e) => e.preventDefault()} className={inputClasses}/>
                     </div>
                     <div className="cursor-pointer" onClick={() => endDateRef.current?.showPicker()}>
                         <label htmlFor="endDate" className="block text-sm font-medium text-brand-primary">Конец периода</label>
-                        <input
-                            ref={endDateRef}
-                            id="endDate"
-                            type="date"
-                            name="endDate"
-                            value={filters.endDate}
-                            onChange={handleFilterChange}
-                            onKeyDown={(e) => e.preventDefault()}
-                            className={inputClasses}
-                        />
+                        <input ref={endDateRef} id="endDate" type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} onKeyDown={(e) => e.preventDefault()} className={inputClasses}/>
                     </div>
-
-                    {/* User Filter */}
                     <div>
                         <label htmlFor="userInput" className="block text-sm font-medium text-brand-primary">Пользователь</label>
-                        <div className="relative">
-                            <input
-                                id="userInput"
-                                type="text"
-                                list="users-datalist"
-                                value={userSearch}
-                                onChange={(e) => handleTextFilterChange('userId', e.target.value)}
-                                className={`${inputClasses} pr-8`}
-                                placeholder="Все пользователи"
-                            />
-                            {userSearch && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleTextFilterChange('userId', '')}
-                                    className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400 hover:text-gray-600"
-                                    aria-label="Очистить"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            )}
-                            <datalist id="users-datalist">
-                                {availableUsers.map(u => <option key={u.id} value={u.name} />)}
-                            </datalist>
-                        </div>
+                        <input id="userInput" name="user" list="userDatalist" value={searchTerms.user} onChange={handleSearchableChange} className={inputClasses} placeholder="Все пользователи"/>
+                        <datalist id="userDatalist">
+                            {availableUsers.map(u => <option key={u.id} value={u.name}/>)}
+                        </datalist>
                     </div>
 
-                    {/* Region Filter (Admin only) */}
                     {user?.role === Role.ADMIN && (
                         <div>
                             <label htmlFor="regionId" className="block text-sm font-medium text-brand-primary">Регион</label>
@@ -304,65 +258,19 @@ const ReportsScreen: React.FC = () => {
                             </select>
                         </div>
                     )}
-
-                    {/* Point Filter */}
                     <div>
                         <label htmlFor="pointInput" className="block text-sm font-medium text-brand-primary">Точка</label>
-                         <div className="relative">
-                            <input
-                                id="pointInput"
-                                type="text"
-                                list="points-datalist"
-                                value={pointSearch}
-                                onChange={(e) => handleTextFilterChange('pointId', e.target.value)}
-                                className={`${inputClasses} pr-8`}
-                                placeholder="Все точки"
-                                disabled={!filters.regionId && user?.role === Role.ADMIN}
-                            />
-                            {pointSearch && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleTextFilterChange('pointId', '')}
-                                    className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400 hover:text-gray-600"
-                                    aria-label="Очистить"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            )}
-                            <datalist id="points-datalist">
-                                {availablePoints.map(p => <option key={p.id} value={p.name} />)}
-                            </datalist>
-                        </div>
+                        <input id="pointInput" name="point" list="pointDatalist" value={searchTerms.point} onChange={handleSearchableChange} className={inputClasses} placeholder="Все точки" disabled={!filters.regionId && user?.role === Role.ADMIN}/>
+                        <datalist id="pointDatalist">
+                             {availablePoints.map(p => <option key={p.id} value={p.name}/>)}
+                        </datalist>
                     </div>
-
-                     {/* Machine Filter */}
                     <div>
                         <label htmlFor="machineInput" className="block text-sm font-medium text-brand-primary">Аппарат</label>
-                        <div className="relative">
-                            <input
-                                id="machineInput"
-                                type="text"
-                                list="machines-datalist"
-                                value={machineSearch}
-                                onChange={(e) => handleTextFilterChange('machineId', e.target.value)}
-                                className={`${inputClasses} pr-8`}
-                                placeholder="Все аппараты"
-                                disabled={availableMachines.length === 0}
-                            />
-                            {machineSearch && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleTextFilterChange('machineId', '')}
-                                    className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400 hover:text-gray-600"
-                                    aria-label="Очистить"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            )}
-                            <datalist id="machines-datalist">
-                                {availableMachines.map(m => <option key={m.id} value={`${m.name} (SN: ${m.serialNumber})`} />)}
-                            </datalist>
-                        </div>
+                         <input id="machineInput" name="machine" list="machineDatalist" value={searchTerms.machine} onChange={handleSearchableChange} className={inputClasses} placeholder="Все аппараты" disabled={availableMachines.length === 0}/>
+                        <datalist id="machineDatalist">
+                             {availableMachines.map(m => <option key={m.id} value={`${m.name} (SN: ${m.serialNumber})`} />)}
+                        </datalist>
                     </div>
                  </div>
                  <div className="flex flex-wrap gap-3 mt-6 justify-end">
@@ -375,13 +283,28 @@ const ReportsScreen: React.FC = () => {
                  </div>
             </div>
 
+            {!filteredRecords && (
+                <div className="mt-6 p-6 bg-white rounded-lg shadow-md text-center text-gray-500 border-2 border-dashed border-gray-300 no-print">
+                    <FileText className="w-12 h-12 mx-auto text-gray-400 mb-2"/>
+                    <h3 className="text-lg font-semibold text-brand-primary">Отчёт готов к формированию</h3>
+                    <p>Используйте фильтры выше, чтобы задать параметры, а затем нажмите "Сформировать отчёт".</p>
+                </div>
+            )}
+
             {filteredRecords && (
-                <div id="report-area">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl sm:text-2xl font-bold text-brand-primary">Результаты отчёта</h2>
-                        <button onClick={handlePrint} className="no-print flex items-center gap-2 px-4 py-2 bg-brand-secondary text-white rounded-lg hover:bg-brand-primary font-semibold transition-colors">
-                            <Printer className="w-5 h-5"/> Печать
-                        </button>
+                <div id="report-area" className="mt-6 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-4">
+                        <div>
+                            <h2 className="text-xl sm:text-2xl font-bold text-brand-primary">
+                                Результаты отчёта ({filteredRecords.length})
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">{generateReportSummary()}</p>
+                        </div>
+                        {filteredRecords.length > 0 && (
+                            <button onClick={handlePrint} className="no-print self-start sm:self-center flex items-center gap-2 px-4 py-2 bg-brand-secondary text-white rounded-lg hover:bg-brand-primary font-semibold transition-colors">
+                                <Printer className="w-5 h-5"/> Печать
+                            </button>
+                        )}
                     </div>
 
                     {filteredRecords.length > 0 ? (
@@ -389,7 +312,7 @@ const ReportsScreen: React.FC = () => {
                             {filteredRecords.map(record => {
                                 const machineInfo = getMachineInfo(record.machineId);
                                 return (
-                                    <div key={record.id} className="p-4 bg-white rounded-lg shadow-md border border-gray-200 report-record">
+                                    <div key={record.id} className="p-4 bg-white rounded-lg shadow-md border border-gray-200 report-record border-l-4 border-brand-secondary">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
                                             <div className="md:col-span-1">
                                                 <p className="flex items-center gap-2 font-semibold text-brand-primary"><Calendar className="w-4 h-4 text-gray-500"/>Дата: {new Date(record.timestamp).toLocaleString('ru-RU')}</p>

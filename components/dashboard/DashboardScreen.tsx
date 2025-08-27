@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import * as api from '../../services/api';
 import type { Region, Point, Machine, User, MaintenanceRecord } from '../../types';
 import { MachineStatus } from '../../types';
-import { Search, MapPin, Building, Coffee as CoffeeIcon, ChevronDown, ChevronRight, Calendar, User as UserIcon } from 'lucide-react';
+import { Search, MapPin, Building, Coffee as CoffeeIcon, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 
 const MachineLink = ({ machine, lastRecordInfo }: { machine: Machine, lastRecordInfo: string }) => {
     const statusColors: Record<MachineStatus, string> = {
@@ -44,6 +44,7 @@ const DashboardScreen: React.FC = () => {
     } | null>(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<MachineStatus | ''>('');
     const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
 
     // Effect for fetching data
@@ -59,40 +60,50 @@ const DashboardScreen: React.FC = () => {
         fetchData();
     }, [user]);
 
-    // Effect for managing region expansion based on search and user role
+    // Effect for managing region expansion based on filters
     useEffect(() => {
         if (!data) return;
         const lowerSearchTerm = searchTerm.toLowerCase().trim();
 
-        if (lowerSearchTerm) {
+        if (lowerSearchTerm || statusFilter) {
             const newlyExpanded = new Set<string>();
             data.regions.forEach(region => {
-                const pointsInRegion = data.points.filter(p => p.regionId === region.id);
-                const hasMatchingPoint = pointsInRegion.some(point => {
-                    const pointItselfMatches = point.name.toLowerCase().includes(lowerSearchTerm) || point.address.toLowerCase().includes(lowerSearchTerm);
-                    if (pointItselfMatches) return true;
+                // Check if any machine in the region matches the combined filters
+                const hasMatchingMachine = data.machines.some(machine => {
+                    if (machine.regionId !== region.id) return false;
+                    
+                    const statusMatch = !statusFilter || machine.status === statusFilter;
+                    if (!statusMatch) return false;
 
-                    const machinesInPoint = data.machines.filter(m => m.pointId === point.id);
-                    return machinesInPoint.some(m => m.name.toLowerCase().includes(lowerSearchTerm) || m.serialNumber.toLowerCase().includes(lowerSearchTerm));
+                    if (lowerSearchTerm) {
+                        const machineItselfMatches = machine.name.toLowerCase().includes(lowerSearchTerm) || machine.serialNumber.toLowerCase().includes(lowerSearchTerm);
+                        if (machineItselfMatches) return true;
+
+                        const point = machine.pointId ? data.points.find(p => p.id === machine.pointId) : null;
+                        if (point) {
+                            return point.name.toLowerCase().includes(lowerSearchTerm) || point.address.toLowerCase().includes(lowerSearchTerm);
+                        }
+                    } else {
+                        return true; // No search term, status match is enough
+                    }
+                    
+                    return false;
                 });
                 
-                const machinesWithoutPoint = data.machines.filter(m => m.regionId === region.id && !m.pointId);
-                const hasMatchingMachineWithoutPoint = machinesWithoutPoint.some(m => m.name.toLowerCase().includes(lowerSearchTerm) || m.serialNumber.toLowerCase().includes(lowerSearchTerm));
-                
-                if (hasMatchingPoint || hasMatchingMachineWithoutPoint) {
+                if (hasMatchingMachine) {
                     newlyExpanded.add(region.id);
                 }
             });
             setExpandedRegions(newlyExpanded);
         } else {
-            // Default expansion logic when search is empty
+            // Default expansion logic when filters are empty
             if (user && (user.role === 'TECHNICIAN' || data.regions.length === 1)) {
                 setExpandedRegions(new Set(data.regions.map((r: Region) => r.id)));
             } else {
                 setExpandedRegions(new Set());
             }
         }
-    }, [searchTerm, data, user]);
+    }, [searchTerm, statusFilter, data, user]);
 
 
     const toggleRegion = (regionId: string) => {
@@ -130,15 +141,31 @@ const DashboardScreen: React.FC = () => {
         <div className="container mx-auto max-w-4xl">
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-4 sm:mb-6">Панель мониторинга</h1>
             
-            <div className="mb-6 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                    type="text"
-                    placeholder="Поиск по точке, адресу, аппарату..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-brand-secondary focus:border-brand-secondary bg-white text-brand-primary placeholder-gray-500"
-                />
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="relative flex-grow">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                        type="text"
+                        placeholder="Поиск по точке, адресу, аппарату..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-brand-secondary focus:border-brand-secondary bg-white text-brand-primary placeholder-gray-500"
+                    />
+                </div>
+                 <div className="sm:w-auto sm:min-w-[200px]">
+                    <select
+                        id="statusFilter"
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value as MachineStatus | '')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-brand-secondary focus:border-brand-secondary bg-white text-brand-primary"
+                        aria-label="Фильтр по статусу"
+                    >
+                        <option value="">Все статусы</option>
+                        <option value={MachineStatus.OK}>В работе</option>
+                        <option value={MachineStatus.WARNING}>Требует внимания</option>
+                        <option value={MachineStatus.ERROR}>Неисправен</option>
+                    </select>
+                </div>
             </div>
 
             {loading && (
@@ -155,22 +182,37 @@ const DashboardScreen: React.FC = () => {
                         const pointsInRegion = data.points.filter(p => p.regionId === region.id);
                         const machinesWithoutPoint = data.machines.filter(m => m.regionId === region.id && !m.pointId);
 
-                        let filteredPoints = pointsInRegion;
-                        let filteredMachinesWithoutPoint = machinesWithoutPoint;
+                        // Filter unassigned machines. They must match both status and search.
+                        const filteredMachinesWithoutPoint = machinesWithoutPoint.filter(m => {
+                            const statusMatch = !statusFilter || m.status === statusFilter;
+                            if (!statusMatch) return false;
+                            if (lowerSearchTerm) {
+                                return m.name.toLowerCase().includes(lowerSearchTerm) || m.serialNumber.toLowerCase().includes(lowerSearchTerm);
+                            }
+                            return true;
+                        });
 
-                        if (lowerSearchTerm) {
-                            filteredPoints = pointsInRegion.filter(point => {
-                                const pointItselfMatches = point.name.toLowerCase().includes(lowerSearchTerm) || point.address.toLowerCase().includes(lowerSearchTerm);
-                                if (pointItselfMatches) return true;
+                        // For points, we need to find which points should be displayed, and for each of those points, which machines should be displayed.
+                        const displayablePoints = pointsInRegion.map(point => {
+                            const machinesInPoint = data.machines.filter(m => m.pointId === point.id);
+
+                            // Filter the machines that will be displayed under this point.
+                            const displayableMachinesInPoint = machinesInPoint.filter(m => {
+                                const statusMatch = !statusFilter || m.status === statusFilter;
+                                if (!statusMatch) return false;
                                 
-                                const machinesInPoint = data.machines.filter(m => m.pointId === point.id);
-                                return machinesInPoint.some(m => m.name.toLowerCase().includes(lowerSearchTerm) || m.serialNumber.toLowerCase().includes(lowerSearchTerm));
+                                if (lowerSearchTerm) {
+                                    const machineMatch = m.name.toLowerCase().includes(lowerSearchTerm) || m.serialNumber.toLowerCase().includes(lowerSearchTerm);
+                                    const pointMatch = point.name.toLowerCase().includes(lowerSearchTerm) || point.address.toLowerCase().includes(lowerSearchTerm);
+                                    return machineMatch || pointMatch;
+                                }
+                                return true;
                             });
 
-                            filteredMachinesWithoutPoint = machinesWithoutPoint.filter(m => m.name.toLowerCase().includes(lowerSearchTerm) || m.serialNumber.toLowerCase().includes(lowerSearchTerm));
-                        }
+                            return { point, machines: displayableMachinesInPoint };
+                        }).filter(item => item.machines.length > 0);
                         
-                        if (filteredPoints.length === 0 && filteredMachinesWithoutPoint.length === 0) {
+                        if (displayablePoints.length === 0 && filteredMachinesWithoutPoint.length === 0) {
                             return null;
                         }
 
@@ -192,24 +234,20 @@ const DashboardScreen: React.FC = () => {
 
                                 {expandedRegions.has(region.id) && (
                                     <div className="p-4 border-t border-gray-200 animate-fade-in">
-                                        {filteredPoints.map(point => {
-                                            const machinesInPoint = data.machines.filter(m => m.pointId === point.id);
-                                            return (
-                                                <div key={point.id} className="mb-4 pl-4 border-l-2 border-brand-secondary">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Building className="w-5 h-5 text-gray-600" />
-                                                        <div>
-                                                            <h3 className="text-lg font-semibold">{point.name}</h3>
-                                                            <p className="text-sm text-gray-500">{point.address}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="pl-6 space-y-1">
-                                                        {machinesInPoint.map(machine => <MachineLink key={machine.id} machine={machine} lastRecordInfo={getLastRecordInfo(machine.id)} />)}
-                                                        {machinesInPoint.length === 0 && <p className="text-sm text-gray-400 italic">Нет аппаратов на этой точке</p>}
+                                        {displayablePoints.map(({ point, machines }) => (
+                                            <div key={point.id} className="mb-4 pl-4 border-l-2 border-brand-secondary">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Building className="w-5 h-5 text-gray-600" />
+                                                    <div>
+                                                        <h3 className="text-lg font-semibold">{point.name}</h3>
+                                                        <p className="text-sm text-gray-500">{point.address}</p>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                                <div className="pl-6 space-y-1">
+                                                    {machines.map(machine => <MachineLink key={machine.id} machine={machine} lastRecordInfo={getLastRecordInfo(machine.id)} />)}
+                                                </div>
+                                            </div>
+                                        ))}
                                         
                                         {filteredMachinesWithoutPoint.length > 0 && (
                                             <div className="mt-4 pt-4 border-t border-dashed">
@@ -218,10 +256,6 @@ const DashboardScreen: React.FC = () => {
                                                     {filteredMachinesWithoutPoint.map(machine => <MachineLink key={machine.id} machine={machine} lastRecordInfo={getLastRecordInfo(machine.id)} />)}
                                                 </div>
                                             </div>
-                                        )}
-
-                                        {filteredPoints.length === 0 && filteredMachinesWithoutPoint.length === 0 && (
-                                            <p className="text-center text-gray-500 py-4">В этом регионе нет точек или аппаратов.</p>
                                         )}
                                     </div>
                                 )}
