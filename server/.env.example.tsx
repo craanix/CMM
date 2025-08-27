@@ -1,3 +1,4 @@
+/*
 # -----------------------------
 # DATABASE CONFIGURATION
 # -----------------------------
@@ -18,3 +19,4 @@ JWT_SECRET="your-super-secret-and-long-random-string-here"
 # -----------------------------
 # Порт, на котором будет работать ваш Node.js сервер.
 PORT=4000
+*/

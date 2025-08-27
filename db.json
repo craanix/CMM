@@ -1,0 +1,216 @@
+
+{
+  "regions": [
+    {
+      "id": "clw9k1n9o0000a5mbbnhd6sml",
+      "name": "Курская область"
+    },
+    {
+      "id": "clw9k1n9o0001a5mb2b43b1z9",
+      "name": "Белгородская область"
+    }
+  ],
+  "users": [
+    {
+      "id": "clw9k2f1c0002a5mbs736340y",
+      "name": "Администратор",
+      "login": "admin",
+      "password": "password123",
+      "role": "ADMIN",
+      "regionId": null
+    },
+    {
+      "id": "clw9k2f1c0003a5mbc2n91p1a",
+      "name": "Иван Петров",
+      "login": "tech1",
+      "password": "password123",
+      "role": "TECHNICIAN",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml"
+    },
+    {
+      "id": "clw9k2f1d0004a5mb42h79x0o",
+      "name": "Сергей Сидоров",
+      "login": "tech2",
+      "password": "password123",
+      "role": "TECHNICIAN",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml"
+    },
+    {
+      "id": "clw9k2f1d0005a5mbc8z16z8u",
+      "name": "Анна Кузнецова",
+      "login": "tech3",
+      "password": "password123",
+      "role": "TECHNICIAN",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+    },
+    {
+      "id": "clw9k2f1d0006a5mbhff138w6",
+      "name": "Ольга Васильева",
+      "login": "tech4",
+      "password": "password123",
+      "role": "TECHNICIAN",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+    }
+  ],
+  "points": [
+    {
+      "id": "clw9k3o4e0007a5mbo8qf1g8b",
+      "name": "Кафе 'Центральное'",
+      "address": "г. Курск, ул. Ленина, 1",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml"
+    },
+    {
+      "id": "clw9k3o4f0008a5mbnhtz3tgy",
+      "name": "Офис 'Прогресс'",
+      "address": "г. Курск, ул. Радищева, 50",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml"
+    },
+    {
+      "id": "clw9k3o4f0009a5mb62b3225z",
+      "name": "Кофейня 'Уют'",
+      "address": "г. Белгород, Гражданский пр-т, 25",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+    },
+    {
+      "id": "clw9k3o4f000aa5mb2q6e56t3",
+      "name": "Бизнес-центр 'Столица'",
+      "address": "г. Белгород, ул. Народная, 10",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+    },
+    {
+      "id": "clw9k3o4f000ba5mbp6l4d70q",
+      "name": "Гостиница 'Салют'",
+      "address": "г. Белгород, пр-т Ватутина, 34",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+    }
+  ],
+  "machines": [
+    {
+      "id": "clw9k4v2s000ca5mbl1k19zhn",
+      "name": "Franke A600",
+      "serialNumber": "FRA600K1",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml",
+      "pointId": "clw9k3o4e0007a5mbo8qf1g8b",
+      "status": "OK"
+    },
+    {
+      "id": "clw9k4v2s000da5mbgq1x7w6e",
+      "name": "WMF 5000 S+",
+      "serialNumber": "WMF5000K2",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml",
+      "pointId": "clw9k3o4f0008a5mbnhtz3tgy",
+      "status": "WARNING"
+    },
+    {
+      "id": "clw9k4v2t000ea5mbw1sc744i",
+      "name": "Jura Giga X8",
+      "serialNumber": "JURAGX8K3",
+      "regionId": "clw9k1n9o0000a5mbbnhd6sml",
+      "pointId": "clw9k3o4f0008a5mbnhtz3tgy",
+      "status": "OK"
+    },
+    {
+      "id": "clw9k4v2t000fa5mb9p2j2879",
+      "name": "Franke A600",
+      "serialNumber": "FRA600B1",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9",
+      "pointId": "clw9k3o4f0009a5mb62b3225z",
+      "status": "OK"
+    },
+    {
+      "id": "clw9k4v2t000ga5mbe811cvc1",
+      "name": "LaCimbali S30",
+      "serialNumber": "LCS30B2",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9",
+      "pointId": "clw9k3o4f000aa5mb2q6e56t3",
+      "status": "ERROR"
+    },
+    {
+      "id": "clw9k4v2t000ha5mbk9620w5w",
+      "name": "WMF 1500 S+",
+      "serialNumber": "WMF1500B3",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9",
+      "pointId": "clw9k3o4f000ba5mbp6l4d70q",
+      "status": "OK"
+    },
+    {
+      "id": "clw9k4v2u000ia5mbdwy5ddrg",
+      "name": "Jura Giga X8",
+      "serialNumber": "JURAGX8B4",
+      "regionId": "clw9k1n9o0001a5mb2b43b1z9",
+      "pointId": "clw9k3o4f000ba5mbp6l4d70q",
+      "status": "OK"
+    }
+  ],
+  "parts": [
+    {
+      "id": "clw9k6a0c000ja5mb1hvy768m",
+      "name": "Фильтр для воды Claris Pro",
+      "sku": "WF-001"
+    },
+    {
+      "id": "clw9k6a0c000ka5mbmh646q2f",
+      "name": "Жернова для кофемолки (64мм)",
+      "sku": "GR-64"
+    },
+    {
+      "id": "clw9k6a0d000la5mbbh656s5h",
+      "name": "Уплотнительное кольцо группы",
+      "sku": "SL-G12"
+    },
+    {
+      "id": "clw9k6a0d000ma5mb7sdr9a9e",
+      "name": "Помпа Ulka EX5",
+      "sku": "PM-ULKA5"
+    },
+    {
+      "id": "clw9k6a0d000na5mb3v6f3n9w",
+      "name": "Чистящие таблетки (100 шт)",
+      "sku": "CL-T100"
+    }
+  ],
+  "maintenanceRecords": [
+    {
+      "id": "clw9k7r3g000oa5mblb7j1wry",
+      "machineId": "clw9k4v2s000da5mbgq1x7w6e",
+      "userId": "clw9k2f1c0003a5mbc2n91p1a",
+      "timestamp": "2024-05-18T10:30:00.000Z",
+      "description": "Проведена чистка капучинатора. Наблюдается слабый пар. Требуется замена уплотнителя паровой трубки при следующем ТО.",
+      "usedParts": []
+    },
+    {
+      "id": "clw9k7r3h000pa5mb96f483g1",
+      "machineId": "clw9k4v2t000ga5mbe811cvc1",
+      "userId": "clw9k2f1d0005a5mbc8z16z8u",
+      "timestamp": "2024-05-20T14:00:00.000Z",
+      "description": "Машина не включается. Диагностика показала неисправность помпы. Заказана новая деталь для замены.",
+      "usedParts": []
+    },
+    {
+      "id": "clw9k7r3h000qa5mbx0fo08yv",
+      "machineId": "clw9k4v2s000ca5mbl1k19zhn",
+      "userId": "clw9k2f1d0004a5mb42h79x0o",
+      "timestamp": "2024-05-21T09:15:00.000Z",
+      "description": "Плановое ТО. Проведена декальцинация, заменен фильтр для воды.",
+      "usedParts": [
+        {
+          "partId": "clw9k6a0c000ja5mb1hvy768m",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "clw9k7r3h000ra5mbu2b13w02",
+      "machineId": "clw9k4v2u000ia5mbdwy5ddrg",
+      "userId": "clw9k2f1d0006a5mbhff138w6",
+      "timestamp": "2024-05-19T11:00:00.000Z",
+      "description": "Плановое ТО, чистка от кофейных масел. Все системы в норме.",
+      "usedParts": [
+        {
+          "partId": "clw9k6a0d000na5mb3v6f3n9w",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}

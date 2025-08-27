@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnlineStatus } from '../../contexts/OnlineStatusContext';
 import { Role } from '../../types';
-import { Coffee, UserCircle, LogOut, Wrench, FileText } from 'lucide-react';
+import { Coffee, UserCircle, LogOut, Wrench, FileText, Wifi, WifiOff } from 'lucide-react';
 import ProfileModal from './ProfileModal';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
+  const { isOnline } = useOnlineStatus();
   const navigate = useNavigate();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
@@ -25,6 +27,17 @@ const Header: React.FC = () => {
           </NavLink>
 
           <div className="flex items-center gap-2 sm:gap-4">
+             <div title={isOnline ? 'Онлайн' : 'Офлайн'} className="flex items-center gap-1.5 p-2 rounded-md">
+              {isOnline ? (
+                <Wifi className="w-5 h-5 text-status-ok" />
+              ) : (
+                <WifiOff className="w-5 h-5 text-status-warning" />
+              )}
+               <span className="hidden sm:inline text-sm font-medium">
+                 {isOnline ? 'Онлайн' : 'Офлайн'}
+               </span>
+            </div>
+
             <button
               onClick={() => setIsProfileModalOpen(true)}
               className="flex items-center gap-2 p-2 rounded-md hover:bg-brand-secondary/80 transition-colors"

@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnlineStatus } from '../../contexts/OnlineStatusContext';
 import * as api from '../../services/api';
 import type { Region, Point, Machine, User, MaintenanceRecord } from '../../types';
 import { MachineStatus } from '../../types';
-import { Search, MapPin, Building, Coffee as CoffeeIcon, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
+import { Search, MapPin, Building, Coffee as CoffeeIcon, ChevronDown, ChevronRight, Calendar, WifiOff } from 'lucide-react';
 
 const MachineLink = ({ machine, lastRecordInfo }: { machine: Machine, lastRecordInfo: string }) => {
     const statusColors: Record<MachineStatus, string> = {
@@ -36,6 +36,7 @@ const MachineLink = ({ machine, lastRecordInfo }: { machine: Machine, lastRecord
 
 const DashboardScreen: React.FC = () => {
     const { user } = useAuth();
+    const { isOnline } = useOnlineStatus();
     const [data, setData] = useState<{ 
         regions: Region[], 
         points: Point[], 
@@ -44,6 +45,7 @@ const DashboardScreen: React.FC = () => {
         maintenanceRecords: MaintenanceRecord[]
     } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<MachineStatus | ''>('');
     const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
@@ -53,10 +55,16 @@ const DashboardScreen: React.FC = () => {
         const fetchData = async () => {
             if (user) {
                 setLoading(true);
-                // FIX: api.getAllDataForUser expects 0 arguments. User data is inferred from auth token on the server.
-                const result = await api.getAllDataForUser();
-                setData(result);
-                setLoading(false);
+                setError(null);
+                try {
+                    const result = await api.getAllDataForUser();
+                    setData(result);
+                } catch (e: any) {
+                    setError('Не удалось загрузить данные. Проверьте подключение к сети.');
+                    console.error(e);
+                } finally {
+                    setLoading(false);
+                }
             }
         };
         fetchData();
@@ -143,6 +151,16 @@ const DashboardScreen: React.FC = () => {
         <div className="container mx-auto max-w-4xl">
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-4 sm:mb-6">Панель мониторинга</h1>
             
+            {!isOnline && (
+                <div className="p-3 mb-6 bg-status-warning/20 border-l-4 border-status-warning text-yellow-800 rounded-r-lg flex items-center gap-3">
+                    <WifiOff className="w-6 h-6"/>
+                    <div>
+                        <p className="font-bold">Вы работаете в офлайн-режиме.</p>
+                        <p className="text-sm">Отображаются сохраненные данные, они могут быть неактуальны.</p>
+                    </div>
+                </div>
+            )}
+            
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-grow">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -175,6 +193,13 @@ const DashboardScreen: React.FC = () => {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
                 </div>
             )}
+            
+            {error && !data && (
+                <div className="text-center p-6 bg-white rounded-lg shadow-md">
+                    <p className="text-status-error">{error}</p>
+                </div>
+            )}
+
 
             {!loading && data && (
                 <div className="space-y-4">
