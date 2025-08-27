@@ -1,11 +1,13 @@
-// FIX: The import of 'process' was removed to rely on the global 'process' object provided by Node.js, which resolves the type error for 'process.exit'.
-// import process from 'process';
-// FIX: Changed to a named import for PrismaClient and Role to resolve type errors.
+
+
+// FIX: Using direct imports for PrismaClient and Role to ensure correct type resolution.
 import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as dbData from '../../db.json';
+// FIX: Import process to provide types for process.exit.
+import process from 'process';
 
-// FIX: Instantiated PrismaClient from the named import.
+// FIX: Instantiated PrismaClient from the direct import.
 const prisma = new PrismaClient();
 
 async function main() {
@@ -33,7 +35,7 @@ async function main() {
         name: user.name,
         login: user.login,
         password: hashedPassword,
-        // FIX: Used the imported Role type for casting.
+        // FIX: Used the directly imported Role enum.
         role: user.role as Role,
         regionId: user.regionId,
       },

@@ -1,10 +1,12 @@
+
 /*
 # -----------------------------
 # DATABASE CONFIGURATION
 # -----------------------------
-# URL для подключения к вашей базе данных PostgreSQL.
-# Замените USER, PASSWORD, HOST, PORT, и DATABASE на ваши реальные данные.
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
+# URL для подключения к базе данных PostgreSQL, работающей в Docker.
+# 'db' - это имя сервиса из файла docker-compose.yaml.
+# Пользователь, пароль и имя БД должны совпадать с теми, что указаны в docker-compose.yaml.
+DATABASE_URL="postgresql://postgres:password123@db:5432/coffee_db?schema=public"
 
 # -----------------------------
 # AUTHENTICATION CONFIGURATION

@@ -1,18 +1,20 @@
-// FIX: The import of 'process' was removed to rely on the global 'process' object provided by Node.js, which resolves the type error for 'process.exit'.
-// import process from 'process';
-// FIX: Aliased express imports to prevent type conflicts with global Request/Response types.
-import express, { Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
+
+
+// FIX: Import Request, Response, NextFunction directly from express to avoid type conflicts.
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-// FIX: Changed to a named import for PrismaClient and User to resolve type errors.
+// FIX: Using direct imports for PrismaClient and User to ensure correct type resolution.
 import { PrismaClient, User } from '@prisma/client';
+// FIX: Import process to provide types for process.exit.
+import process from 'process';
 
 dotenv.config();
 
 const app = express();
-// FIX: Instantiated PrismaClient from the named import.
+// FIX: Instantiated PrismaClient from the direct import.
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -26,21 +28,21 @@ app.use(cors());
 app.use(express.json());
 
 // Extend Express Request type
-// FIX: Changed to extend the aliased ExpressRequest and use the imported User type to avoid type conflicts.
-interface AuthRequest extends ExpressRequest {
+// FIX: Extended the directly imported Request type and used the imported User type.
+interface AuthRequest extends Request {
     user?: User;
 }
 
 // Auth middleware
-// FIX: Typed request and response to use AuthRequest and aliased express types.
-const authMiddleware = (req: AuthRequest, res: ExpressResponse, next: NextFunction) => {
+// FIX: Typed request and response with the directly imported types.
+const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ message: 'Authentication token required' });
     }
     const token = authHeader.split(' ')[1];
     try {
-        // FIX: Used the imported User type for the decoded token.
+        // FIX: Used the directly imported User type for casting.
         const decoded = jwt.verify(token, JWT_SECRET) as User;
         req.user = decoded;
         next();
@@ -53,8 +55,8 @@ const authMiddleware = (req: AuthRequest, res: ExpressResponse, next: NextFuncti
 // --- ROUTES ---
 
 // AUTH
-// FIX: Typed request and response to use aliased express types.
-app.post('/api/auth/login', async (req: ExpressRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.post('/api/auth/login', async (req: Request, res: Response) => {
     const { login, password } = req.body;
     if (!login || !password) {
         return res.status(400).json({ message: 'Login and password are required' });
@@ -68,8 +70,8 @@ app.post('/api/auth/login', async (req: ExpressRequest, res: ExpressResponse) =>
     res.json({ token, user: userPayload });
 });
 
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({where: {id: req.user!.id}});
     if (!user) return res.status(404).json({ message: 'User not found' });
     const { password, ...userWithoutPassword } = user;
@@ -77,8 +79,8 @@ app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: ExpressRes
 });
 
 // GET ALL DATA
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.get('/api/data', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => {
     const user = req.user!;
     if (user.role === 'ADMIN') {
         const [regions, users, points, machines, maintenanceRecords, parts] = await Promise.all([
@@ -113,8 +115,8 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: ExpressRespon
 
 
 // GET MACHINE DETAILS
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const machine = await prisma.machine.findUnique({ where: { id } });
     if (!machine) return res.status(404).json({ message: 'Machine not found' });
@@ -129,15 +131,15 @@ app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, re
 
 
 // GET ALL (for specific lists)
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => res.json(await prisma.part.findMany()));
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.get('/api/users', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => res.json(await prisma.user.findMany({select: {id: true, name: true, login: true, role: true, regionId: true}})));
+// FIX: Typed request and response with the directly imported types.
+app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.part.findMany()));
+// FIX: Typed request and response with the directly imported types.
+app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.user.findMany({select: {id: true, name: true, login: true, role: true, regionId: true}})));
 
 
 // ADD MAINTENANCE RECORD
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { machineId, description, usedParts } = req.body;
     const newRecord = await prisma.maintenanceRecord.create({
         data: {
@@ -167,16 +169,16 @@ const modelMapping: Record<EntityType, any> = {
     parts: prisma.part,
 };
 
-// FIX: Typed request and response to use AuthRequest and aliased express types.
-const adminMiddleware = (req: AuthRequest, res: ExpressResponse, next: NextFunction) => {
+// FIX: Typed request and response with the directly imported types.
+const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (req.user?.role !== 'ADMIN') {
         return res.status(403).json({ message: 'Admin access required' });
     }
     next();
 };
 
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
         return res.status(400).json({ message: 'Invalid entity type' });
@@ -192,8 +194,8 @@ app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRe
     res.status(201).json(newEntity);
 });
 
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
         return res.status(400).json({ message: 'Invalid entity type' });
@@ -220,8 +222,8 @@ app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: Aut
     }
 });
 
-// FIX: Typed request and response to use AuthRequest and aliased express response type.
-app.delete('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
+// FIX: Typed request and response with the directly imported types.
+app.delete('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
         return res.status(400).json({ message: 'Invalid entity type' });
