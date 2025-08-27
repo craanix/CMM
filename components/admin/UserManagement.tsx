@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 import type { User, Region } from '../../types';
@@ -17,7 +18,8 @@ const UserManagement: React.FC = () => {
         setLoading(true);
         const [userData, allData] = await Promise.all([
             api.getAllUsers(),
-            api.getAllDataForUser({ id: 'admin', role: Role.ADMIN } as User)
+            // FIX: api.getAllDataForUser expects 0 arguments. Admin role is inferred from auth token on the server.
+            api.getAllDataForUser()
         ]);
         setUsers(userData);
         setRegions(allData.regions);

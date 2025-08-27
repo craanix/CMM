@@ -1,174 +1,106 @@
 import type { Region, Point, Machine, User, MaintenanceRecord, Part } from '../types';
-import { Role } from '../types';
 
-// Simulate network latency
-const API_LATENCY = 150;
+const API_BASE_URL = '/api'; // Using a relative URL for proxying
 
-const delay = <T,>(data: T): Promise<T> => 
-  new Promise(resolve => setTimeout(() => resolve(data), API_LATENCY));
+const getAuthToken = (): string | null => {
+    return localStorage.getItem('cmm_token');
+}
 
-const DB_KEY = 'cmm_db_session';
-
-// --- DB Management ---
-let dbPromise: Promise<any> | null = null;
-
-const initDb = async () => {
-  try {
-    const sessionData = sessionStorage.getItem(DB_KEY);
-    if (sessionData) {
-      return JSON.parse(sessionData);
+const getHeaders = () => {
+    const token = getAuthToken();
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
-    const response = await fetch('/db.json');
+    return headers;
+}
+
+const handleResponse = async (response: Response) => {
     if (!response.ok) {
-        throw new Error('Network response was not ok');
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(error.message || 'An unknown error occurred');
     }
-    const dbData = await response.json();
-    sessionStorage.setItem(DB_KEY, JSON.stringify(dbData));
-    return dbData;
-  } catch (error) {
-    console.error("Failed to initialize database:", error);
-    // In a real app, you'd have more robust error handling.
-    // For this simulation, we'll clear storage and try again next time.
-    sessionStorage.removeItem(DB_KEY);
-    throw error;
-  }
-};
-
-const getDb = () => {
-    if (!dbPromise) {
-        dbPromise = initDb();
-    }
-    return dbPromise;
-};
-
-const readDb = async () => {
-    try {
-        return await getDb();
-    } catch (error) {
-        // If the first attempt fails, reset the promise to allow retrying
-        dbPromise = null; 
-        return Promise.reject(error);
-    }
-};
-
-
-const writeDb = (data: any) => {
-  sessionStorage.setItem(DB_KEY, JSON.stringify(data));
-  // Invalidate the promise to ensure next read gets the new data
-  dbPromise = Promise.resolve(data); 
-};
-
+    return response.json();
+}
 
 // --- AUTH ---
-export const login = async (login: string, password_unused: string): Promise<User | null> => {
-  const data = await readDb();
-  const user = data.users.find((u: User) => u.login.toLowerCase() === login.toLowerCase());
-  return delay(user || null);
+export const login = async (login: string, password_unused: string): Promise<{token: string, user: User}> => {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ login, password: password_unused }),
+    });
+    return handleResponse(response);
 };
+
+export const getMe = async (): Promise<User> => {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, { headers: getHeaders() });
+    return handleResponse(response);
+}
+
 
 // --- DATA FETCHING ---
-export const getAllDataForUser = async (user: User): Promise<any> => {
-  const allData = await readDb();
-  
-  if (user.role === Role.ADMIN) {
-    return delay(allData);
-  }
-  
-  // Technician sees only their region's data
-  if (user.role === Role.TECHNICIAN && user.regionId) {
-    const regionId = user.regionId;
-    const regions = allData.regions.filter((r: Region) => r.id === regionId);
-    const points = allData.points.filter((p: Point) => p.regionId === regionId);
-    const machines = allData.machines.filter((m: Machine) => m.regionId === regionId);
-    const machineIds = machines.map((m: Machine) => m.id);
-    const records = allData.maintenanceRecords.filter((rec: MaintenanceRecord) => machineIds.includes(rec.machineId));
-    
-    return delay({
-      regions,
-      points,
-      machines,
-      users: allData.users, // Tech might need to see user names on records
-      parts: allData.parts,
-      maintenanceRecords: records
-    });
-  }
-  
-  return delay(null);
+export const getAllDataForUser = async (): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/data`, { headers: getHeaders() });
+    return handleResponse(response);
 };
 
 
-export const getMachineDetails = async (machineId: string): Promise<{ machine: Machine, records: MaintenanceRecord[] } | null> => {
-    const data = await readDb();
-    const machine = data.machines.find((m: Machine) => m.id === machineId);
-    if (!machine) return delay(null);
-
-    const records = data.maintenanceRecords
-        .filter((r: MaintenanceRecord) => r.machineId === machineId)
-        .sort((a: MaintenanceRecord, b: MaintenanceRecord) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    return delay({ machine, records });
+export const getMachineDetails = async (machineId: string): Promise<{ machine: Machine, records: MaintenanceRecord[] }> => {
+    const response = await fetch(`${API_BASE_URL}/machines/${machineId}/details`, { headers: getHeaders() });
+    return handleResponse(response);
 };
 
 export const getAllParts = async (): Promise<Part[]> => {
-    const data = await readDb();
-    return delay(data.parts);
+    const response = await fetch(`${API_BASE_URL}/parts`, { headers: getHeaders() });
+    return handleResponse(response);
 }
 
 export const getAllUsers = async (): Promise<User[]> => {
-  const data = await readDb();
-  return delay(data.users);
+    const response = await fetch(`${API_BASE_URL}/users`, { headers: getHeaders() });
+    return handleResponse(response);
 }
 
 
 // --- DATA MUTATION ---
-export const addMaintenanceRecord = async (record: Omit<MaintenanceRecord, 'id' | 'timestamp'>): Promise<MaintenanceRecord> => {
-    const data = await readDb();
-    const newRecord: MaintenanceRecord = {
-        ...record,
-        id: `rec_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-    };
-    data.maintenanceRecords.push(newRecord);
-    writeDb(data);
-    return delay(newRecord);
+export const addMaintenanceRecord = async (record: Omit<MaintenanceRecord, 'id' | 'timestamp' | 'userId'>): Promise<MaintenanceRecord> => {
+    const response = await fetch(`${API_BASE_URL}/maintenanceRecords`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(record)
+    });
+    return handleResponse(response);
 };
 
 // --- ADMIN FUNCTIONS ---
 type EntityType = 'regions' | 'users' | 'points' | 'machines' | 'parts';
 
 export const addEntity = async <T,>(entityType: EntityType, entityData: Omit<T, 'id'>): Promise<T> => {
-    const data = await readDb();
-    const newEntity = {
-        ...entityData,
-        id: `${entityType.slice(0, 3)}_${Date.now()}`,
-    } as T;
-    (data[entityType] as T[]).push(newEntity);
-    writeDb(data);
-    return delay(newEntity);
+    const response = await fetch(`${API_BASE_URL}/${entityType}`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(entityData)
+    });
+    return handleResponse(response);
 }
 
 export const updateEntity = async <T extends {id: string}>(entityType: EntityType, updatedEntityData: Partial<T> & { id: string }): Promise<T> => {
-    const data = await readDb();
-    const items = data[entityType] as T[];
-    const index = items.findIndex(e => e.id === updatedEntityData.id);
-    if (index > -1) {
-        // Merge existing data with new data to prevent overwriting fields
-        const mergedEntity = { ...items[index], ...updatedEntityData };
-        items[index] = mergedEntity;
-        writeDb(data);
-        return delay(mergedEntity);
-    }
-    throw new Error("Entity not found");
+    const { id, ...payload } = updatedEntityData;
+    const response = await fetch(`${API_BASE_URL}/${entityType}/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+    });
+    return handleResponse(response);
 }
 
 
 export const deleteEntity = async (entityType: EntityType, id: string): Promise<{id: string}> => {
-    const data = await readDb();
-    const initialLength = data[entityType].length;
-    data[entityType] = data[entityType].filter((e: {id: string}) => e.id !== id);
-    if (data[entityType].length === initialLength) {
-      throw new Error("Entity not found for deletion");
-    }
-    writeDb(data);
-    return delay({ id });
+    const response = await fetch(`${API_BASE_URL}/${entityType}/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+    });
+    return handleResponse(response);
 }

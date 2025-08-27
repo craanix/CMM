@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 import type { Machine, Region, Point, User } from '../../types';
@@ -30,7 +31,8 @@ const MachineManagement: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         setLoading(true);
-        const allData = await api.getAllDataForUser({ id: 'admin', role: Role.ADMIN } as User);
+        // FIX: api.getAllDataForUser expects 0 arguments. Admin role is inferred from auth token on the server.
+        const allData = await api.getAllDataForUser();
         setMachines(allData.machines);
         setRegions(allData.regions);
         setPoints(allData.points);

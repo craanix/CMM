@@ -19,37 +19,37 @@ const App: React.FC = () => {
 };
 
 const Main: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen bg-brand-light font-sans text-brand-primary">
-      {user && <Header />}
+      {isAuthenticated && <Header />}
       <main className="p-4 sm:p-6">
         <Routes>
-          <Route path="/login" element={!user ? <LoginScreen /> : <Navigate to="/" />} />
+          <Route path="/login" element={!isAuthenticated ? <LoginScreen /> : <Navigate to="/" />} />
           <Route
             path="/"
-            element={user ? <DashboardScreen /> : <Navigate to="/login" />}
+            element={isAuthenticated ? <DashboardScreen /> : <Navigate to="/login" />}
           />
           <Route
             path="/machine/:id"
-            element={user ? <MachineDetailScreen /> : <Navigate to="/login" />}
+            element={isAuthenticated ? <MachineDetailScreen /> : <Navigate to="/login" />}
           />
           <Route
             path="/reports"
-            element={user ? <ReportsScreen /> : <Navigate to="/login" />}
+            element={isAuthenticated ? <ReportsScreen /> : <Navigate to="/login" />}
           />
           <Route
             path="/admin/*"
             element={
-              user && user.role === Role.ADMIN ? (
+              isAuthenticated && user?.role === Role.ADMIN ? (
                 <AdminPanelScreen />
               ) : (
                 <Navigate to="/" />
               )
             }
           />
-          <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />
+          <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} />} />
         </Routes>
       </main>
     </div>

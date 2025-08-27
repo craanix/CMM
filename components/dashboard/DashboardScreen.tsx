@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -52,7 +53,8 @@ const DashboardScreen: React.FC = () => {
         const fetchData = async () => {
             if (user) {
                 setLoading(true);
-                const result = await api.getAllDataForUser(user);
+                // FIX: api.getAllDataForUser expects 0 arguments. User data is inferred from auth token on the server.
+                const result = await api.getAllDataForUser();
                 setData(result);
                 setLoading(false);
             }

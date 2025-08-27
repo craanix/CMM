@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 import type { Point, Region, User } from '../../types';
@@ -14,7 +15,8 @@ const PointManagement: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         setLoading(true);
-        const allData = await api.getAllDataForUser({ id: 'admin', role: Role.ADMIN } as User);
+        // FIX: api.getAllDataForUser expects 0 arguments. Admin role is inferred from auth token on the server.
+        const allData = await api.getAllDataForUser();
         setPoints(allData.points);
         setRegions(allData.regions);
         setLoading(false);

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import * as api from '../../services/api';
@@ -45,7 +46,8 @@ const ReportsScreen: React.FC = () => {
         const fetchData = async () => {
             if (user) {
                 setLoading(true);
-                const result = await api.getAllDataForUser(user);
+                // FIX: api.getAllDataForUser expects 0 arguments. User data is inferred from auth token on the server.
+                const result = await api.getAllDataForUser();
                 const allParts = await api.getAllParts();
                 setAllData({ ...result, parts: allParts });
                 setLoading(false);
