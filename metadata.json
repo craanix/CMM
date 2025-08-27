@@ -1,0 +1,5 @@
+{
+  "name": "Coffee Machine Maintenance",
+  "description": "A web application for technicians and administrators to manage coffee machine maintenance tasks, service history, and spare parts, with a focus on mobile and offline-first usability.",
+  "requestFramePermissions": []
+}

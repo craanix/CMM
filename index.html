@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coffee Machine Maintenance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-primary': '#4a3f35',
+              'brand-secondary': '#a28b7a',
+              'brand-accent': '#eaddcf',
+              'brand-light': '#f5f0e1',
+              'status-ok': '#22c55e',
+              'status-warning': '#f97316',
+              'status-error': '#ef4444',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Final, most robust attempt to override browser autofill styles */
+      html input:-webkit-autofill,
+      html input:-webkit-autofill:hover,
+      html input:-webkit-autofill:focus,
+      html input:-webkit-autofill:active,
+      html textarea:-webkit-autofill,
+      html textarea:-webkit-autofill:hover,
+      html textarea:-webkit-autofill:focus,
+      html textarea:-webkit-autofill:active,
+      html select:-webkit-autofill,
+      html select:-webkit-autofill:hover,
+      html select:-webkit-autofill:focus,
+      html select:-webkit-autofill:active {
+        -webkit-text-fill-color: #4a3f35 !important; /* Text color */
+        -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important; /* Background color */
+        background-color: #ffffff !important; /* Fallback for background */
+        font-family: 'Inter', sans-serif !important;
+        transition: background-color 5000s ease-in-out 0s;
+        caret-color: #4a3f35 !important;
+      }
+    </style>
+    <style>
+      @media print {
+        body {
+          background-color: white;
+          font-size: 10pt;
+        }
+        .no-print {
+          display: none !important;
+        }
+        main {
+          padding: 0 !important;
+        }
+        #report-area {
+          box-shadow: none;
+          border: none;
+          margin: 0;
+          padding: 0;
+        }
+        .report-record {
+          box-shadow: none !important;
+          border: 1px solid #ccc !important;
+          page-break-inside: avoid;
+        }
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+        @page {
+          margin: 1in;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.542.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.8.2"
+  }
+}
+</script>
+</head>
+  <body class="bg-brand-light">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
