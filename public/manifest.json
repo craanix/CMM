@@ -1,0 +1,21 @@
+{
+  "name": "Coffee Machine Maintenance",
+  "short_name": "CMM",
+  "description": "A web application for technicians and administrators to manage coffee machine maintenance tasks.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f0e1",
+  "theme_color": "#4a3f35",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

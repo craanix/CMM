@@ -1,0 +1,48 @@
+# server/Dockerfile
+
+# --- Base image with common dependencies ---
+# Используем Debian-based 'slim' вариант для лучшей совместимости с бинарными зависимостями, как у Prisma.
+# Это решает проблемы с отсутствующими библиотеками вроде libssl на Alpine.
+FROM node:20-slim AS base
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Устанавливаем OpenSSL, зависимость для Prisma.
+RUN apt-get update && apt-get install -y openssl
+
+# --- Builder Stage ---
+# Этот этап устанавливает все зависимости (включая dev) и собирает приложение.
+FROM base AS builder
+
+# Копируем файлы package.json и устанавливаем все зависимости.
+COPY package*.json ./
+RUN npm install
+
+# Копируем остальной исходный код и Prisma схему.
+COPY . .
+
+# Генерируем Prisma клиент.
+RUN npx prisma generate
+
+# Компилируем TypeScript в JavaScript.
+RUN npm run build
+
+# Удаляем dev-зависимости, чтобы подготовить маленький production-образ.
+RUN npm prune --production
+
+# --- Production Stage ---
+# Этот этап создает финальный, легковесный образ для запуска приложения.
+FROM base AS production
+
+# Копируем только необходимые для production файлы из builder-этапа.
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+
+# Открываем порт приложения.
+EXPOSE 4000
+
+# Команда для запуска приложения.
+CMD ["npm", "start"]

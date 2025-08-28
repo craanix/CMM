@@ -1,16 +1,35 @@
+// server/prisma/seed.ts
 
-
-// FIX: Using direct imports for PrismaClient and Role to ensure correct type resolution.
-import { PrismaClient, Role } from '@prisma/client';
+import * as Prisma from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import * as dbData from '../../db.json';
-// FIX: Import process to provide types for process.exit.
-import process from 'process';
+import * as fs from 'fs';
+import * as path from 'path';
 
-// FIX: Instantiated PrismaClient from the direct import.
-const prisma = new PrismaClient();
+// FIX: Add declaration for __dirname to fix "Cannot find name '__dirname'" error.
+declare const __dirname: string;
+// FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
+declare const process: any;
+
+const prisma = new Prisma.PrismaClient();
+
+// Определяем интерфейс для данных, чтобы TypeScript "понимал" структуру db.json
+interface DbData {
+  regions: Prisma.Prisma.RegionCreateInput[];
+  // ИСПРАВЛЕНИЕ: Переименовано 'password_plain' в 'password' для соответствия структуре db.json
+  users: (Omit<Prisma.Prisma.UserCreateInput, 'role'> & { password: string; role: string })[];
+  points: Prisma.Prisma.PointCreateInput[];
+  machines: Prisma.Prisma.MachineCreateInput[];
+  parts: Prisma.Prisma.PartCreateInput[];
+  maintenanceRecords: (Omit<Prisma.Prisma.MaintenanceRecordCreateInput, 'timestamp'> & { timestamp: string; usedParts: { partId: string; quantity: number }[] })[];
+}
 
 async function main() {
+  console.log('Reading data from db.json...');
+  
+  const dbPath = path.join(__dirname, '../../prisma/db.json');
+  const dbFile = fs.readFileSync(dbPath, 'utf-8');
+  const dbData = JSON.parse(dbFile) as DbData;
+
   console.log('Start seeding...');
 
   // Seed Regions
@@ -26,18 +45,17 @@ async function main() {
   // Seed Users with hashed passwords
   console.log('Seeding users...');
   for (const user of dbData.users) {
+    // ИСПРАВЛЕНИЕ: Используем 'user.password' вместо 'user.password_plain' для хеширования
     const hashedPassword = await bcrypt.hash(user.password, 10);
+    // ИСПРАВЛЕНИЕ: Деструктурируем 'password', чтобы удалить его из данных для Prisma
+    const { password, ...userData } = user;
     await prisma.user.upsert({
       where: { id: user.id },
       update: {},
       create: {
-        id: user.id,
-        name: user.name,
-        login: user.login,
+        ...userData,
         password: hashedPassword,
-        // FIX: Used the directly imported Role enum.
-        role: user.role as Role,
-        regionId: user.regionId,
+        role: user.role as Prisma.Role,
       },
     });
   }
