@@ -42,7 +42,7 @@ const LoginScreen: React.FC = () => {
                 autoComplete="username"
                 required
                 className={`${inputBaseClasses} rounded-t-md`}
-                placeholder="Логин (например, 'admin' или 'tech1')"
+                placeholder="Логин"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
               />
@@ -56,7 +56,7 @@ const LoginScreen: React.FC = () => {
                 autoComplete="current-password"
                 required
                 className={`${inputBaseClasses} rounded-b-md`}
-                placeholder="Пароль (любой пароль)"
+                placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

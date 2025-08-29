@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 import type { User, Region } from '../../types';
@@ -239,10 +240,30 @@ interface CredentialsModalProps {
 const CredentialsModal: React.FC<CredentialsModalProps> = ({ credentials, onClose }) => {
     const [copied, setCopied] = useState(false);
     
-    const handleCopy = () => {
-        navigator.clipboard.writeText(`Логин: ${credentials.login}\nПароль: ${credentials.password}`);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
+    const handleCopy = async () => {
+        const textToCopy = `Логин: ${credentials.login}\nПароль: ${credentials.password}`;
+        try {
+            await navigator.clipboard.writeText(textToCopy);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+        } catch (err) {
+            console.warn('Clipboard API failed, using fallback:', err);
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            textArea.style.position = "absolute";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
+            } catch (copyErr) {
+                console.error('Fallback copy failed', copyErr);
+                alert('Не удалось скопировать учетные данные.');
+            }
+            document.body.removeChild(textArea);
+        }
     };
 
     return (
