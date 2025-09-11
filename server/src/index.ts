@@ -1,14 +1,13 @@
 // FIX: Import specific types from express to resolve type errors with Request and Response objects.
 // FIX: Removed `type` keyword from express import to ensure correct type resolution for Request, Response, and NextFunction.
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 // FIX: Correct Prisma imports by removing the `type` keyword for model types. This allows TypeScript to resolve them correctly and should fix cascading type errors.
 // FIX: Changed import to use namespace and destructuring to fix module resolution errors.
-import * as PrismaAll from '@prisma/client';
-const { PrismaClient, MachineStatus, User, Region } = PrismaAll;
+import { PrismaClient, MachineStatus, User, Region } from '@prisma/client';
 
 
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
@@ -31,13 +30,13 @@ app.use(express.json({ limit: '5mb' })); // Increase limit for CSV data
 
 // Extend Express Request type
 // FIX: Use imported Request type directly.
-type AuthRequest = Request & {
+type AuthRequest = ExpressRequest & {
     user?: User & { region: Region | null };
 };
 
 // Auth middleware
 // FIX: Use imported Response and NextFunction types.
-const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
+const authMiddleware = async (req: AuthRequest, res: ExpressResponse, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ message: 'Authentication token required' });
@@ -64,7 +63,7 @@ const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunctio
 
 // AUTH
 // FIX: Use imported Request and Response types.
-app.post('/api/auth/login', async (req: Request, res: Response) => {
+app.post('/api/auth/login', async (req: ExpressRequest, res: ExpressResponse) => {
     const { login, password } = req.body;
     if (!login || !password) {
         return res.status(400).json({ message: 'Login and password are required' });
@@ -79,14 +78,14 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 });
 
 // FIX: Use imported Response type.
-app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: Response) => {
+app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { password: _, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);
 });
 
 // GET ALL DATA
 // FIX: Use imported Response type.
-app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => {
+app.get('/api/data', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const user = req.user!;
     
     const userSelect = { 
@@ -135,7 +134,7 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
 
 // GET MACHINE DETAILS
 // FIX: Use imported Response type.
-app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, res: Response) => {
+app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { id } = req.params;
     const machine = await prisma.machine.findUnique({ where: { id } });
     if (!machine) return res.status(404).json({ message: 'Machine not found' });
@@ -150,7 +149,7 @@ app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, re
 
 // SYNC REGION DATA
 // FIX: Use imported Response type.
-app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: Response) => {
+app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { id: regionId } = req.params;
     const user = req.user!;
 
@@ -176,8 +175,8 @@ app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: R
 
 // GET ALL (for specific lists)
 // FIX: Use imported Response type.
-app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.part.findMany()));
-app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.user.findMany({
+app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => res.json(await prisma.part.findMany()));
+app.get('/api/users', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => res.json(await prisma.user.findMany({
     select: { 
         id: true, name: true, login: true, role: true, 
         region: { select: { id: true, name: true } },
@@ -188,7 +187,7 @@ app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) =>
 
 // ADD MAINTENANCE RECORD
 // FIX: Use imported Response type.
-app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: Response) => {
+app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { machineId, description, usedParts, timestamp } = req.body;
     const newRecord = await prisma.maintenanceRecord.create({
         data: {
@@ -220,7 +219,7 @@ const modelMapping: Record<EntityType, any> = {
 };
 
 // FIX: Use imported Response and NextFunction types.
-const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+const adminMiddleware = (req: AuthRequest, res: ExpressResponse, next: NextFunction) => {
     if (req.user?.role !== 'ADMIN') {
         return res.status(403).json({ message: 'Admin access required' });
     }
@@ -286,7 +285,7 @@ const parseCsv = (csvString: string): Record<string, string>[] => {
 
 
 // FIX: Use imported Response type.
-app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
+app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { entityType } = req.params;
     if (!['parts', 'points', 'machines'].includes(entityType)) {
         return res.status(400).json({ message: 'Export not supported for this entity type' });
@@ -322,7 +321,7 @@ app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: 
 
 
 // FIX: Use imported Request and Response types.
-app.post('/api/:entityType/import', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.post('/api/:entityType/import', authMiddleware, adminMiddleware, async (req: ExpressRequest, res: ExpressResponse) => {
     const { entityType } = req.params;
     const { csvData } = req.body;
 
@@ -381,7 +380,7 @@ app.post('/api/:entityType/import', authMiddleware, adminMiddleware, async (req:
 
 
 // FIX: Use imported Response type.
-app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
+app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { entityType } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
         return res.status(400).json({ message: 'Invalid entity type' });
@@ -401,7 +400,7 @@ app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRe
 });
 
 // FIX: Use imported Response type.
-app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
+app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
         return res.status(400).json({ message: 'Invalid entity type' });
@@ -435,7 +434,7 @@ app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: Aut
 });
 
 // FIX: Use imported Response type.
-app.delete('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
+app.delete('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: ExpressResponse) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
         return res.status(400).json({ message: 'Invalid entity type' });

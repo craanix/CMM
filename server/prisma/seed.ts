@@ -2,8 +2,7 @@
 
 // FIX: Correct Prisma import. `Prisma` is a namespace used to access types, so it should be imported as a value.
 // FIX: Changed import to use namespace and destructuring to fix module resolution errors.
-import * as PrismaAll from '@prisma/client';
-const { PrismaClient, Role, Prisma } = PrismaAll;
+import * as client from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -13,17 +12,17 @@ declare const __dirname: string;
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
 declare const process: any;
 
-const prisma = new PrismaClient();
+const prisma = new client.PrismaClient();
 
 // Определяем интерфейс для данных, чтобы TypeScript "понимал" структуру db.json
 interface DbData {
-  regions: Prisma.RegionCreateInput[];
+  regions: client.Prisma.RegionCreateInput[];
   // ИСПРАВЛЕНИЕ: Переименовано 'password_plain' в 'password' для соответствия структуре db.json
-  users: (Omit<Prisma.UserCreateInput, 'role' | 'region'> & { password: string; role: string; regionId?: string | null })[];
-  points: Prisma.PointCreateInput[];
-  machines: Prisma.MachineCreateInput[];
-  parts: Prisma.PartCreateInput[];
-  maintenanceRecords: (Omit<Prisma.MaintenanceRecordCreateInput, 'timestamp'> & { timestamp: string; usedParts: { partId: string; quantity: number }[] })[];
+  users: (Omit<client.Prisma.UserCreateInput, 'role' | 'region'> & { password: string; role: string; regionId?: string | null })[];
+  points: client.Prisma.PointCreateInput[];
+  machines: client.Prisma.MachineCreateInput[];
+  parts: client.Prisma.PartCreateInput[];
+  maintenanceRecords: (Omit<client.Prisma.MaintenanceRecordCreateInput, 'timestamp' | 'machine' | 'user'> & { machineId: string, userId: string, timestamp: string; usedParts: { partId: string; quantity: number }[] })[];
 }
 
 async function main() {
@@ -56,8 +55,8 @@ async function main() {
       create: {
         ...userData,
         password: hashedPassword,
-        role: user.role as Role,
-        regionId: user.regionId,
+        role: user.role as client.Role,
+        regionId: user.regionId ?? undefined,
       },
     });
   }
@@ -95,13 +94,15 @@ async function main() {
   // Seed Maintenance Records and Used Parts
   console.log('Seeding maintenance records...');
   for (const record of dbData.maintenanceRecords) {
-    const { usedParts, ...recordData } = record;
+    const { usedParts, machineId, userId, ...recordData } = record;
     const createdRecord = await prisma.maintenanceRecord.upsert({
       where: { id: record.id },
       update: {},
       create: {
         ...recordData,
         timestamp: new Date(recordData.timestamp),
+        machine: { connect: { id: machineId } },
+        user: { connect: { id: userId } },
       },
     });
 
