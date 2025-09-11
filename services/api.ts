@@ -1,4 +1,4 @@
-import type { Region, Point, Machine, User, MaintenanceRecord, Part } from '../types';
+import type { Region, Point, Machine, User, MaintenanceRecord, Part, AllData } from '../types';
 import { getCachedData, setCachedData, queueRequest } from './db';
 
 const API_BASE_URL = '/api'; // Using a relative URL for proxying
@@ -135,6 +135,42 @@ export const getAllUsers = createCachedApiCall('allUsers', async () => {
     const response = await fetch(`${API_BASE_URL}/users`, { headers: getHeaders() });
     return handleResponse(response);
 });
+
+export const syncRegionData = async (regionId: string): Promise<AllData> => {
+    // 1. Fetch fresh data for the specific region
+    const response = await fetch(`${API_BASE_URL}/regions/${regionId}/sync`, { headers: getHeaders() });
+    const newRegionData: { points: Point[], machines: Machine[], maintenanceRecords: MaintenanceRecord[] } = await handleResponse(response);
+
+    // 2. Get the current full dataset from cache
+    const allData = await getCachedData<AllData>('allData');
+
+    if (!allData) {
+        // If there's no cached data, we can't merge. Fallback to fetching everything.
+        return getAllDataForUser();
+    }
+    
+    // 3. Identify all machine IDs in the region from the *old* data
+    const oldMachineIdsInRegion = new Set(allData.machines.filter(m => m.regionId === regionId).map(m => m.id));
+
+    // 4. Filter out the old data for the region being synced
+    const otherPoints = allData.points.filter(p => p.regionId !== regionId);
+    const otherMachines = allData.machines.filter(m => m.regionId !== regionId);
+    const otherRecords = allData.maintenanceRecords.filter(r => !oldMachineIdsInRegion.has(r.machineId));
+
+    // 5. Create the new, merged dataset
+    const updatedData: AllData = {
+        ...allData,
+        points: [...otherPoints, ...newRegionData.points],
+        machines: [...otherMachines, ...newRegionData.machines],
+        maintenanceRecords: [...otherRecords, ...newRegionData.maintenanceRecords],
+    };
+
+    // 6. Update the cache with the merged data
+    await setCachedData('allData', updatedData);
+
+    // 7. Return the merged data
+    return updatedData;
+};
 
 
 // --- DATA MUTATION (Offline-ready) ---

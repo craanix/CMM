@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOnlineStatus } from '../../contexts/OnlineStatusContext';
 import * as api from '../../services/api';
-import type { Region, Point, Machine, User, MaintenanceRecord } from '../../types';
+import type { AllData, Region, Point, Machine, User, MaintenanceRecord } from '../../types';
 import { MachineStatus } from '../../types';
-import { Search, MapPin, Building, Coffee as CoffeeIcon, ChevronDown, ChevronRight, Calendar, WifiOff } from 'lucide-react';
+import { Search, MapPin, Building, Coffee as CoffeeIcon, ChevronDown, ChevronRight, Calendar, WifiOff, RefreshCw } from 'lucide-react';
 
 const MachineLink = ({ machine, lastRecordInfo }: { machine: Machine, lastRecordInfo: string }) => {
     const statusColors: Record<MachineStatus, string> = {
@@ -37,18 +37,13 @@ const MachineLink = ({ machine, lastRecordInfo }: { machine: Machine, lastRecord
 const DashboardScreen: React.FC = () => {
     const { user } = useAuth();
     const { isOnline } = useOnlineStatus();
-    const [data, setData] = useState<{ 
-        regions: Region[], 
-        points: Point[], 
-        machines: Machine[],
-        users: User[],
-        maintenanceRecords: MaintenanceRecord[]
-    } | null>(null);
+    const [data, setData] = useState<AllData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<MachineStatus | ''>('');
     const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
+    const [syncingRegionId, setSyncingRegionId] = useState<string | null>(null);
 
     // Effect for fetching data
     useEffect(() => {
@@ -144,6 +139,21 @@ const DashboardScreen: React.FC = () => {
         }
 
         return 'Нет записей об обслуживании';
+    };
+
+    const handleSyncRegion = async (regionId: string) => {
+        if (syncingRegionId) return; // Prevent concurrent syncs
+        setSyncingRegionId(regionId);
+        setError(null); // Clear previous errors
+        try {
+            const updatedData = await api.syncRegionData(regionId);
+            setData(updatedData);
+        } catch (error) {
+            console.error("Failed to sync region:", error);
+            setError('Не удалось синхронизировать данные для этого региона.');
+        } finally {
+            setSyncingRegionId(null);
+        }
     };
 
 
@@ -255,6 +265,21 @@ const DashboardScreen: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                         <MapPin className="w-6 h-6 text-brand-primary" />
                                         <h2 className="text-xl font-bold text-brand-primary">{region.name}</h2>
+                                         {isOnline && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleSyncRegion(region.id); }}
+                                                disabled={!!syncingRegionId}
+                                                className="p-1.5 rounded-full hover:bg-brand-secondary/20 disabled:opacity-50 disabled:cursor-wait transition-colors"
+                                                title="Синхронизировать регион"
+                                                aria-label={`Синхронизировать ${region.name}`}
+                                            >
+                                                {syncingRegionId === region.id ? (
+                                                    <RefreshCw className="w-5 h-5 text-brand-primary animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="w-5 h-5 text-brand-primary" />
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                     {expandedRegions.has(region.id) ? <ChevronDown className="w-6 h-6 text-brand-primary" /> : <ChevronRight className="w-6 h-6 text-brand-primary" />}
                                 </div>

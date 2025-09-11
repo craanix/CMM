@@ -1,4 +1,5 @@
 
+
 export enum Role {
   ADMIN = 'ADMIN',
   TECHNICIAN = 'TECHNICIAN',
@@ -58,4 +59,13 @@ export interface MaintenanceRecord {
   timestamp: string;
   description: string;
   usedParts: UsedPart[];
+}
+
+export interface AllData {
+  regions: Region[],
+  points: Point[],
+  machines: Machine[],
+  users: User[],
+  maintenanceRecords: MaintenanceRecord[],
+  parts: Part[],
 }

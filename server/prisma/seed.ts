@@ -1,6 +1,7 @@
 // server/prisma/seed.ts
 
-import * as Prisma from '@prisma/client';
+// FIX: Change namespace import to named imports for PrismaClient and types.
+import { PrismaClient, Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,17 +11,24 @@ declare const __dirname: string;
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
 declare const process: any;
 
-const prisma = new Prisma.PrismaClient();
+// FIX: Instantiate PrismaClient directly from the import.
+const prisma = new PrismaClient();
 
 // Определяем интерфейс для данных, чтобы TypeScript "понимал" структуру db.json
 interface DbData {
-  regions: Prisma.Prisma.RegionCreateInput[];
+  // FIX: Correct Prisma type references.
+  regions: Prisma.RegionCreateInput[];
   // ИСПРАВЛЕНИЕ: Переименовано 'password_plain' в 'password' для соответствия структуре db.json
-  users: (Omit<Prisma.Prisma.UserCreateInput, 'role'> & { password: string; role: string })[];
-  points: Prisma.Prisma.PointCreateInput[];
-  machines: Prisma.Prisma.MachineCreateInput[];
-  parts: Prisma.Prisma.PartCreateInput[];
-  maintenanceRecords: (Omit<Prisma.Prisma.MaintenanceRecordCreateInput, 'timestamp'> & { timestamp: string; usedParts: { partId: string; quantity: number }[] })[];
+  // FIX: Correct Prisma type references.
+  users: (Omit<Prisma.UserCreateInput, 'role'> & { password: string; role: string })[];
+  // FIX: Correct Prisma type references.
+  points: Prisma.PointCreateInput[];
+  // FIX: Correct Prisma type references.
+  machines: Prisma.MachineCreateInput[];
+  // FIX: Correct Prisma type references.
+  parts: Prisma.PartCreateInput[];
+  // FIX: Correct Prisma type references.
+  maintenanceRecords: (Omit<Prisma.MaintenanceRecordCreateInput, 'timestamp'> & { timestamp: string; usedParts: { partId: string; quantity: number }[] })[];
 }
 
 async function main() {
@@ -55,7 +63,8 @@ async function main() {
       create: {
         ...userData,
         password: hashedPassword,
-        role: user.role as Prisma.Role,
+        // FIX: Use the imported Role enum directly.
+        role: user.role as Role,
       },
     });
   }
