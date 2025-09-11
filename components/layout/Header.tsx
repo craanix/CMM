@@ -10,12 +10,14 @@ const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { isOnline } = useOnlineStatus();
   const navigate = useNavigate();
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isProfileModalOpen, setProfileModalOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  const isAdmin = user?.role === Role.ADMIN;
 
   return (
     <>
@@ -38,11 +40,11 @@ const Header: React.FC = () => {
                </span>
             </div>
 
-            {user?.role === Role.ADMIN ? (
+            {isAdmin ? (
               <button
-                onClick={() => setIsProfileModalOpen(true)}
+                onClick={() => setProfileModalOpen(true)}
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-brand-secondary/80 transition-colors"
-                aria-label="Открыть профиль"
+                aria-label="Редактировать профиль"
               >
                 <UserCircle className="w-5 h-5 text-brand-accent" />
                 <span className="hidden sm:inline font-medium">{user?.name}</span>
@@ -96,7 +98,7 @@ const Header: React.FC = () => {
           </div>
         </div>
       </header>
-      {isProfileModalOpen && user?.role === Role.ADMIN && <ProfileModal onClose={() => setIsProfileModalOpen(false)} />}
+      {isProfileModalOpen && <ProfileModal onClose={() => setProfileModalOpen(false)} />}
     </>
   );
 };
