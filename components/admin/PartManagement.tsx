@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 // FIX: Import ImportSummary directly from types
@@ -78,7 +77,6 @@ const PartManagement: React.FC = () => {
         await api.exportEntities('parts');
     };
 
-    // FIX: Changed api.ImportSummary to ImportSummary
     const handleImport = async (csvData: string): Promise<ImportSummary> => {
         const summary = await api.importEntities('parts', csvData);
         fetchData(); // Refresh data after import

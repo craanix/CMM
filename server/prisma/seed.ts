@@ -1,7 +1,9 @@
 // server/prisma/seed.ts
 
 // FIX: Use named imports for Prisma Client and types to resolve module resolution issues.
-import { PrismaClient, Prisma, Role } from '@prisma/client';
+// FIX: Separated type-only imports from value imports to resolve module resolution issues.
+import { PrismaClient, Role } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,7 +19,7 @@ const prisma = new PrismaClient();
 interface DbData {
   regions: Prisma.RegionCreateInput[];
   // ИСПРАВЛЕНИЕ: Переименовано 'password_plain' в 'password' для соответствия структуре db.json
-  users: (Omit<Prisma.UserCreateInput, 'role' | 'regions'> & { password: string; role: string; regionIds?: string[] })[];
+  users: (Omit<Prisma.UserCreateInput, 'role' | 'region'> & { password: string; role: string; regionId?: string | null })[];
   points: Prisma.PointCreateInput[];
   machines: Prisma.MachineCreateInput[];
   parts: Prisma.PartCreateInput[];
@@ -47,7 +49,7 @@ async function main() {
   console.log('Seeding users...');
   for (const user of dbData.users) {
     const hashedPassword = await bcrypt.hash(user.password, 10);
-    const { password, regionIds, ...userData } = user;
+    const { password, regionId, ...userData } = user;
     await prisma.user.upsert({
       where: { id: user.id },
       update: {},
@@ -55,9 +57,7 @@ async function main() {
         ...userData,
         password: hashedPassword,
         role: user.role as Role,
-        regions: {
-          connect: regionIds?.map((id: string) => ({ id })) || []
-        }
+        regionId: user.regionId,
       },
     });
   }

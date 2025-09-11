@@ -202,7 +202,7 @@ const ReportsScreen: React.FC = () => {
         let availableMachines = allData.machines;
         
         if (filters.regionId) {
-            availableUsers = availableUsers.filter(u => u.regions.some(r => r.id === filters.regionId));
+            availableUsers = availableUsers.filter(u => u.regionId === filters.regionId);
             availablePoints = availablePoints.filter(p => p.regionId === filters.regionId);
             availableMachines = availableMachines.filter(m => m.regionId === filters.regionId);
         }

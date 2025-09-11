@@ -1,5 +1,4 @@
 
-
 export enum Role {
   ADMIN = 'ADMIN',
   TECHNICIAN = 'TECHNICIAN',
@@ -17,7 +16,8 @@ export interface User {
   login: string;
   password?: string; // Should not be sent to client in a real app
   role: Role;
-  regions: Region[];
+  regionId: string | null;
+  region?: Region | null;
 }
 
 export interface Region {
@@ -26,7 +26,7 @@ export interface Region {
 }
 
 export interface Point {
-  id: string;
+  id:string;
   name:string;
   address: string;
   regionId: string;

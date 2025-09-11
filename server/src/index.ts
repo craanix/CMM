@@ -1,11 +1,16 @@
 // FIX: Use named imports for express types to resolve type issues.
-import express, { Request, Response, NextFunction } from 'express';
+// FIX: Separated type-only imports from value imports for Express to resolve type errors.
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 // FIX: Use named imports for Prisma Client and types to resolve module resolution issues.
-import { PrismaClient, User, Region, MachineStatus } from '@prisma/client';
+// FIX: Separated type-only imports from value imports for Prisma to resolve type errors.
+import { PrismaClient, MachineStatus } from '@prisma/client';
+import type { User, Region } from '@prisma/client';
+
 
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
 declare const process: any;
@@ -27,7 +32,7 @@ app.use(express.json({ limit: '5mb' })); // Increase limit for CSV data
 
 // Extend Express Request type
 type AuthRequest = Request & {
-    user?: User & { regions: Region[] };
+    user?: User & { region: Region | null };
 };
 
 // Auth middleware
@@ -41,12 +46,12 @@ const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunctio
         const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
         const user = await prisma.user.findUnique({ 
             where: { id: decoded.id }, 
-            include: { regions: true } 
+            include: { region: true } 
         });
         if (!user) {
             return res.status(401).json({ message: 'User not found' });
         }
-        req.user = user as User & { regions: Region[] };
+        req.user = user as User & { region: Region | null };
         next();
     } catch (error) {
         return res.status(403).json({ message: 'Invalid or expired token' });
@@ -62,7 +67,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     if (!login || !password) {
         return res.status(400).json({ message: 'Login and password are required' });
     }
-    const user = await prisma.user.findUnique({ where: { login }, include: { regions: true } });
+    const user = await prisma.user.findUnique({ where: { login }, include: { region: true } });
     if (!user || !await bcrypt.compare(password, user.password)) {
         return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -72,7 +77,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 });
 
 app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: Response) => {
-    const { password, ...userWithoutPassword } = req.user!;
+    const { password: _, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);
 });
 
@@ -82,7 +87,7 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
     
     const userSelect = { 
         id: true, name: true, login: true, role: true, 
-        regions: { select: { id: true, name: true } } 
+        region: { select: { id: true, name: true } } 
     };
 
     if (user.role === 'ADMIN') {
@@ -98,17 +103,17 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
     }
 
     if (user.role === 'TECHNICIAN') {
-        const regionIds = user.regions.map(r => r.id);
-        if (regionIds.length === 0) {
+        const regionId = user.regionId;
+        if (!regionId) {
             const users = await prisma.user.findMany({select: userSelect});
             const parts = await prisma.part.findMany();
             return res.json({ regions: [], points: [], machines: [], users, maintenanceRecords: [], parts });
         }
         
         const [regions, points, machines, users] = await Promise.all([
-            prisma.region.findMany({ where: { id: { in: regionIds } } }),
-            prisma.point.findMany({ where: { regionId: { in: regionIds } } }),
-            prisma.machine.findMany({ where: { regionId: { in: regionIds } } }),
+            prisma.region.findMany({ where: { id: regionId } }),
+            prisma.point.findMany({ where: { regionId: regionId } }),
+            prisma.machine.findMany({ where: { regionId: regionId } }),
             prisma.user.findMany({select: userSelect}), // Still need all users for names
         ]);
         const machineIds = machines.map(m => m.id);
@@ -142,7 +147,7 @@ app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: R
     const { id: regionId } = req.params;
     const user = req.user!;
 
-    if (user.role === 'TECHNICIAN' && !user.regions.some(r => r.id === regionId)) {
+    if (user.role === 'TECHNICIAN' && user.regionId !== regionId) {
         return res.status(403).json({ message: "Forbidden: You do not have access to this region." });
     }
     
@@ -167,7 +172,8 @@ app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: Response) =>
 app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.user.findMany({
     select: { 
         id: true, name: true, login: true, role: true, 
-        regions: { select: { id: true, name: true } } 
+        region: { select: { id: true, name: true } },
+        regionId: true
     }
 })));
 
@@ -340,16 +346,9 @@ app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRe
     let data = req.body;
 
     if (entityType === 'users') {
-        const { regionIds, ...userData } = data;
-        if (userData.password) {
-            userData.password = await bcrypt.hash(userData.password, 10);
+        if (data.password) {
+            data.password = await bcrypt.hash(data.password, 10);
         }
-        data = {
-            ...userData,
-            regions: {
-                connect: regionIds?.map((id: string) => ({ id })) || []
-            }
-        };
     }
     
     const newEntity = await model.create({ data });
@@ -366,25 +365,18 @@ app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: Aut
     let data = req.body;
 
     if (entityType === 'users') {
-        const { regionIds, ...userData } = data;
-        if (userData.password) {
-            userData.password = await bcrypt.hash(userData.password, 10);
+        if (data.password) {
+            data.password = await bcrypt.hash(data.password, 10);
         } else {
-            delete userData.password;
+            delete data.password;
         }
-        data = {
-            ...userData,
-            regions: {
-                set: regionIds?.map((id: string) => ({ id })) || []
-            }
-        };
     }
 
     try {
         const updatedEntity = await model.update({ 
             where: { id }, 
             data,
-            include: entityType === 'users' ? { regions: true } : undefined
+            include: entityType === 'users' ? { region: true } : undefined
         });
         if (entityType === 'users') {
             delete (updatedEntity as any).password;

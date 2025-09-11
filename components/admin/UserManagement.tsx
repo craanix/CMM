@@ -41,12 +41,10 @@ const UserManagement: React.FC = () => {
         setCurrentUser(null);
     };
     
-    const handleSaveUser = async (userToSave: Omit<User, 'id' | 'regions'> & { regionIds?: string[] } | User) => {
+    const handleSaveUser = async (userToSave: any) => {
         const payload: any = { ...userToSave };
-        // The frontend user object has a full 'regions' array, but the API expects 'regionIds' for mutations.
-        if (payload.regions) {
-            payload.regionIds = payload.regions.map((r: Region) => r.id);
-            delete payload.regions;
+        if (payload.region) {
+            delete payload.region;
         }
 
         if ('id' in payload) {
@@ -120,7 +118,7 @@ const UserManagement: React.FC = () => {
                             <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Имя</th>
                             <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Логин</th>
                             <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Роль</th>
-                            <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Регионы</th>
+                            <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Регион</th>
                             <th className="py-3 px-4 text-center text-sm font-bold text-brand-primary uppercase tracking-wider">Действия</th>
                         </tr>
                     </thead>
@@ -140,8 +138,8 @@ const UserManagement: React.FC = () => {
                                     <span className="text-gray-700">{user.role === Role.ADMIN ? 'Администратор' : 'Техник'}</span>
                                 </td>
                                 <td className="p-3 flex justify-between items-center border-b md:border-none md:table-cell">
-                                    <span className="font-semibold text-brand-primary/90 md:hidden">Регионы</span>
-                                    <span className="text-gray-700 text-right md:text-left">{user.regions?.map(r => r.name).join(', ') || 'N/A'}</span>
+                                    <span className="font-semibold text-brand-primary/90 md:hidden">Регион</span>
+                                    <span className="text-gray-700 text-right md:text-left">{user.region?.name || 'N/A'}</span>
                                 </td>
                                 <td className="p-3 flex justify-end md:justify-center items-center md:table-cell">
                                     <div className="flex gap-2">
@@ -201,7 +199,7 @@ const UserManagement: React.FC = () => {
 interface UserModalProps {
     user: User | null;
     regions: Region[];
-    onSave: (user: Omit<User, 'id' | 'regions'> & { regionIds?: string[] } | User) => void;
+    onSave: (user: any) => void;
     onClose: () => void;
 }
 
@@ -210,7 +208,7 @@ const UserModal: React.FC<UserModalProps> = ({ user, regions, onSave, onClose })
         name: user?.name || '',
         login: user?.login || '',
         role: user?.role || Role.TECHNICIAN,
-        regionIds: user?.regions?.map(r => r.id) || [],
+        regionId: user?.regionId || null,
     });
     const [newPassword, setNewPassword] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
@@ -235,19 +233,10 @@ const UserModal: React.FC<UserModalProps> = ({ user, regions, onSave, onClose })
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         if (name === 'role' && value === Role.ADMIN) {
-             setFormData(prev => ({ ...prev, role: value as Role, regionIds: [] }));
+             setFormData(prev => ({ ...prev, role: value as Role, regionId: null }));
         } else {
-             setFormData(prev => ({ ...prev, [name]: value }));
+             setFormData(prev => ({ ...prev, [name]: value === '' ? null : value }));
         }
-    };
-    
-    const handleRegionChange = (regionId: string) => {
-        setFormData(prev => {
-            const newRegionIds = prev.regionIds.includes(regionId)
-                ? prev.regionIds.filter(id => id !== regionId)
-                : [...prev.regionIds, regionId];
-            return { ...prev, regionIds: newRegionIds };
-        });
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -283,21 +272,21 @@ const UserModal: React.FC<UserModalProps> = ({ user, regions, onSave, onClose })
                     </div>
                      {formData.role === Role.TECHNICIAN && (
                         <div>
-                            <label className={labelClasses}>Регионы</label>
-                            <div className="mt-2 p-3 border border-gray-300 rounded-md max-h-48 overflow-y-auto space-y-2">
-                                {regions.length > 0 ? regions.map(r => (
-                                    <div key={r.id} className="flex items-center">
-                                        <input
-                                            id={`region-${r.id}`}
-                                            type="checkbox"
-                                            checked={formData.regionIds.includes(r.id)}
-                                            onChange={() => handleRegionChange(r.id)}
-                                            className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-secondary"
-                                        />
-                                        <label htmlFor={`region-${r.id}`} className="ml-3 block text-sm text-brand-primary">{r.name}</label>
-                                    </div>
-                                )) : <p className="text-sm text-gray-500">Регионы не найдены.</p>}
-                            </div>
+                            <label htmlFor="userRegion" className={labelClasses}>Регион</label>
+                            <select
+                                id="userRegion"
+                                name="regionId"
+                                value={formData.regionId || ''}
+                                onChange={handleFormChange}
+                                className={inputClasses}
+                            >
+                                <option value="">Не назначен</option>
+                                {regions.map(r => (
+                                    <option key={r.id} value={r.id}>
+                                        {r.name}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     )}
                     
