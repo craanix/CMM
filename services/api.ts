@@ -137,11 +137,23 @@ export const getAllUsers = createCachedApiCall('allUsers', async () => {
 });
 
 export const syncRegionData = async (regionId: string): Promise<AllData> => {
-    // 1. Fetch fresh data for the specific region
+    // 1. Fetch fresh list data for the specific region
     const response = await fetch(`${API_BASE_URL}/regions/${regionId}/sync`, { headers: getHeaders() });
     const newRegionData: { points: Point[], machines: Machine[], maintenanceRecords: MaintenanceRecord[] } = await handleResponse(response);
 
-    // 2. Get the current full dataset from cache
+    // 2. Pre-cache details for each machine in the region to make them available offline
+    console.log(`[Sync] Caching details for ${newRegionData.machines.length} machines in region ${regionId}`);
+    const machineDetailPromises = newRegionData.machines.map(machine => 
+        getMachineDetails(machine.id).catch(err => {
+            // Log error but don't let a single failed fetch stop the whole sync
+            console.error(`[Sync] Failed to cache details for machine ${machine.id}:`, err);
+            return null; 
+        })
+    );
+    await Promise.all(machineDetailPromises);
+    console.log('[Sync] Machine detail caching complete.');
+
+    // 3. Get the current full dataset from cache
     const allData = await getCachedData<AllData>('allData');
 
     if (!allData) {
@@ -149,15 +161,15 @@ export const syncRegionData = async (regionId: string): Promise<AllData> => {
         return getAllDataForUser();
     }
     
-    // 3. Identify all machine IDs in the region from the *old* data
+    // 4. Identify all machine IDs in the region from the *old* data to correctly replace records
     const oldMachineIdsInRegion = new Set(allData.machines.filter(m => m.regionId === regionId).map(m => m.id));
 
-    // 4. Filter out the old data for the region being synced
+    // 5. Filter out the old data for the region being synced
     const otherPoints = allData.points.filter(p => p.regionId !== regionId);
     const otherMachines = allData.machines.filter(m => m.regionId !== regionId);
     const otherRecords = allData.maintenanceRecords.filter(r => !oldMachineIdsInRegion.has(r.machineId));
 
-    // 5. Create the new, merged dataset
+    // 6. Create the new, merged dataset
     const updatedData: AllData = {
         ...allData,
         points: [...otherPoints, ...newRegionData.points],
@@ -165,10 +177,10 @@ export const syncRegionData = async (regionId: string): Promise<AllData> => {
         maintenanceRecords: [...otherRecords, ...newRegionData.maintenanceRecords],
     };
 
-    // 6. Update the cache with the merged data
+    // 7. Update the cache with the merged data
     await setCachedData('allData', updatedData);
 
-    // 7. Return the merged data
+    // 8. Return the merged data
     return updatedData;
 };
 

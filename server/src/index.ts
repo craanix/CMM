@@ -1,13 +1,11 @@
-// FIX: Separated default import for Express value from type imports.
-import express from 'express';
-import type { Request, Response, NextFunction } from 'express';
+// FIX: Combined express imports to resolve type issues.
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-// FIX: Separated value and type imports for Prisma to resolve module resolution errors.
-import { PrismaClient, MachineStatus } from '@prisma/client';
-import type { User, Region } from '@prisma/client';
+// FIX: Consolidated Prisma imports to resolve module resolution errors.
+import { PrismaClient, MachineStatus, User, Region } from '@prisma/client';
 
 
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
