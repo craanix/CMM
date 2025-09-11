@@ -1,13 +1,11 @@
-// FIX: Use named imports for express types to resolve type issues.
-// FIX: Separated type-only imports from value imports for Express to resolve type errors.
+// FIX: Separated default import for Express value from type imports.
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-// FIX: Use named imports for Prisma Client and types to resolve module resolution issues.
-// FIX: Separated type-only imports from value imports for Prisma to resolve type errors.
+// FIX: Separated value and type imports for Prisma to resolve module resolution errors.
 import { PrismaClient, MachineStatus } from '@prisma/client';
 import type { User, Region } from '@prisma/client';
 
@@ -87,6 +85,7 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
     
     const userSelect = { 
         id: true, name: true, login: true, role: true, 
+        regionId: true,
         region: { select: { id: true, name: true } } 
     };
 
@@ -252,24 +251,27 @@ app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: 
         return res.status(400).json({ message: 'Export not supported for this entity type' });
     }
     
+    // Add UTF-8 BOM for Excel compatibility with Cyrillic characters
+    const BOM = '\uFEFF';
+
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=${entityType}_export_${new Date().toISOString().split('T')[0]}.csv`);
 
     try {
         if (entityType === 'parts') {
             const parts = await prisma.part.findMany();
-            res.status(200).send(toCsv(['sku', 'name'], parts));
+            res.status(200).send(BOM + toCsv(['sku', 'name'], parts));
         } else if (entityType === 'points') {
             const points = await prisma.point.findMany({ include: { region: true } });
             const data = points.map(p => ({ name: p.name, address: p.address, region_name: p.region.name }));
-            res.status(200).send(toCsv(['name', 'address', 'region_name'], data));
+            res.status(200).send(BOM + toCsv(['name', 'address', 'region_name'], data));
         } else if (entityType === 'machines') {
             const machines = await prisma.machine.findMany({ include: { region: true, point: true } });
             const data = machines.map(m => ({
                 serialNumber: m.serialNumber, name: m.name, status: m.status,
                 region_name: m.region.name, point_name: m.point?.name || ''
             }));
-            res.status(200).send(toCsv(['serialNumber', 'name', 'status', 'region_name', 'point_name'], data));
+            res.status(200).send(BOM + toCsv(['serialNumber', 'name', 'status', 'region_name', 'point_name'], data));
         }
     } catch (error) {
         console.error(`Export failed for ${entityType}:`, error);

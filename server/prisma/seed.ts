@@ -1,7 +1,6 @@
 // server/prisma/seed.ts
 
-// FIX: Use named imports for Prisma Client and types to resolve module resolution issues.
-// FIX: Separated type-only imports from value imports to resolve module resolution issues.
+// FIX: Separated value and type imports for Prisma to resolve module resolution errors.
 import { PrismaClient, Role } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
