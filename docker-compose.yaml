@@ -38,7 +38,7 @@ services:
   client:
     build:
       context: .
-      dockerfile: Dockerfile.json
+      dockerfile: Dockerfile
     container_name: cmm_client
     ports:
       - "8080:80"
@@ -54,3 +54,4 @@ networks:
 volumes:
   db-data:
     driver: local
+
