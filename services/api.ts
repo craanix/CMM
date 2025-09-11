@@ -138,7 +138,7 @@ export const getAllUsers = createCachedApiCall('allUsers', async () => {
 
 
 // --- DATA MUTATION (Offline-ready) ---
-export const addMaintenanceRecord = async (record: Omit<MaintenanceRecord, 'id' | 'timestamp' | 'userId'>): Promise<MaintenanceRecord> => {
+export const addMaintenanceRecord = async (record: Omit<MaintenanceRecord, 'id'>): Promise<MaintenanceRecord> => {
     const url = `${API_BASE_URL}/maintenanceRecords`;
     return handleMutation(url, 'POST', record);
 };

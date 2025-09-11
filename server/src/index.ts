@@ -156,12 +156,13 @@ app.get('/api/users', authMiddleware, async (req: AuthRequest, res: express.Resp
 // FIX: Typed request and response with the directly imported types.
 // Switched to using namespaced types to avoid conflicts.
 app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: express.Response) => {
-    const { machineId, description, usedParts } = req.body;
+    const { machineId, description, usedParts, timestamp } = req.body;
     const newRecord = await prisma.maintenanceRecord.create({
         data: {
             machineId,
             description,
             userId: req.user!.id,
+            timestamp: timestamp ? new Date(timestamp) : new Date(),
             usedParts: {
                 create: usedParts.map((p: {partId: string, quantity: number}) => ({
                     partId: p.partId,

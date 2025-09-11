@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import * as api from '../../services/api';
-import type { Machine, MaintenanceRecord, User, Part } from '../../types';
+import type { Machine, MaintenanceRecord, User, Part, UsedPart } from '../../types';
 import { MachineStatus } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronLeft, Coffee, Settings, Calendar, User as UserIcon, PlusCircle, Wrench, X } from 'lucide-react';
@@ -187,7 +187,8 @@ const AddRecordForm: React.FC<AddRecordFormProps> = ({ machineId, userId, parts,
             machineId,
             userId,
             description,
-            usedParts: usedParts.filter(p => p.partId)
+            usedParts: usedParts.filter(p => p.partId),
+            timestamp: new Date().toISOString(),
         };
         const newRecord = await api.addMaintenanceRecord(newRecordData);
         await api.updateEntity('machines', { id: machineId, status: newStatus });
