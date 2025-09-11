@@ -51,14 +51,14 @@
 
 ### 1. Клонирование репозитория
 ```bash
-git clone <URL_ВАШЕГО_РЕПОЗИТОРИЯ>
-cd <НАЗВАНИЕ_ПАПКИ_ПРОЕКТА>
+git clone https://github.com/craanix/CMM.git
+cd CMM
 ```
 
 ### 2. Создание файла конфигурации
-Создайте файл `.env` внутри папки `server/` на основе примера `server/.env.example.tsx`.
+Создайте файл `.env` внутри папки `server/` на основе примера `server/.env.example`.
 ```bash
-cp server/.env.example.tsx server/.env
+cp server/.env.example server/.env
 ```
 Откройте файл `server/.env` и убедитесь, что в нем заданы все необходимые переменные, особенно `JWT_SECRET`.
 
@@ -88,6 +88,8 @@ docker-compose up --build -d
 - **Техник (Курская область)**:
   - **Логин**: `tech1`
   - **Пароль**: `password123`
+## Для установки как PWA потребуется домен с https
+   В локальной сети не получится установить приложение как PWA из-за его ограничений, обязательно требуется сертификат.
 
 ##  Local development without Docker
 
