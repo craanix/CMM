@@ -39,9 +39,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ entityName, csvHeaders, onImp
                 setSummary(result);
                 setStatus(result.errors.length > 0 ? 'error' : 'success');
             } catch (err: any) {
-                const parsedError = JSON.parse(err.message || '{}');
-                setSummary(parsedError);
-                setErrorMsg(parsedError.message || 'Произошла ошибка при импорте.');
+                console.error("Import failed:", err);
+                setErrorMsg(err.message || 'Произошла ошибка при импорте. Проверьте консоль для деталей.');
                 setStatus('error');
             }
         };
@@ -95,6 +94,17 @@ const ImportModal: React.FC<ImportModalProps> = ({ entityName, csvHeaders, onImp
                         <p className="mt-2 text-brand-primary">Идет импорт...</p>
                     </div>
                 )}
+                
+                {status === 'error' && errorMsg && (
+                    <div className="mt-4 p-4 rounded-md bg-red-50 border-red-200">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="h-6 w-6 text-status-error" />
+                            <h4 className="text-lg font-bold text-red-800">Ошибка импорта</h4>
+                        </div>
+                        <p className="mt-2 text-sm text-red-700">{errorMsg}</p>
+                    </div>
+                )}
+
 
                 {summary && (status === 'success' || status === 'error') && (
                     <div className={`mt-4 p-4 rounded-md ${status === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>

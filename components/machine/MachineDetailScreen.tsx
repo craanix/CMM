@@ -33,17 +33,32 @@ const MachineDetailScreen: React.FC = () => {
   const fetchData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const details = await api.getMachineDetails(id);
-    if (details) {
-      setMachine(details.machine);
-      setRecords(details.records);
+    try {
+        // Fetch machine-specific details and the general data in parallel.
+        // This uses the main 'allData' cache, which is populated by the dashboard and sync process,
+        // ensuring user and part lists are available offline after syncing.
+        const [details, allData] = await Promise.all([
+            api.getMachineDetails(id),
+            api.getAllDataForUser()
+        ]);
+
+        if (details) {
+            setMachine(details.machine);
+            setRecords(details.records);
+        }
+        
+        if (allData) {
+            setUsers(allData.users);
+            setParts(allData.parts);
+        }
+    } catch (e) {
+        console.error("Failed to load machine detail data, might be offline with no cache.", e);
+        // Let the component render the "not found" message
+    } finally {
+        setLoading(false);
     }
-    const allUsers = await api.getAllUsers();
-    setUsers(allUsers);
-    const allParts = await api.getAllParts();
-    setParts(allParts);
-    setLoading(false);
   }, [id]);
+
 
   useEffect(() => {
     fetchData();

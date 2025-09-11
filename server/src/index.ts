@@ -1,11 +1,11 @@
-// FIX: Combined express imports to resolve type issues.
-import express, { Request, Response, NextFunction } from 'express';
+// FIX: Import specific types from express to resolve type errors with Request and Response objects.
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-// FIX: Consolidated Prisma imports to resolve module resolution errors.
-import { PrismaClient, MachineStatus, User, Region } from '@prisma/client';
+// FIX: Consolidate Prisma imports into a single statement to fix potential module resolution issues.
+import { PrismaClient, MachineStatus, type User, type Region } from '@prisma/client';
 
 
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
@@ -27,11 +27,13 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' })); // Increase limit for CSV data
 
 // Extend Express Request type
+// FIX: Use imported Request type directly.
 type AuthRequest = Request & {
     user?: User & { region: Region | null };
 };
 
 // Auth middleware
+// FIX: Use imported Response and NextFunction types.
 const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -58,6 +60,7 @@ const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunctio
 // --- ROUTES ---
 
 // AUTH
+// FIX: Use imported Request and Response types.
 app.post('/api/auth/login', async (req: Request, res: Response) => {
     const { login, password } = req.body;
     if (!login || !password) {
@@ -72,12 +75,14 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     res.json({ token, user: userPayload });
 });
 
+// FIX: Use imported Response type.
 app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { password: _, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);
 });
 
 // GET ALL DATA
+// FIX: Use imported Response type.
 app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => {
     const user = req.user!;
     
@@ -126,6 +131,7 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
 
 
 // GET MACHINE DETAILS
+// FIX: Use imported Response type.
 app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const machine = await prisma.machine.findUnique({ where: { id } });
@@ -140,6 +146,7 @@ app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, re
 });
 
 // SYNC REGION DATA
+// FIX: Use imported Response type.
 app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id: regionId } = req.params;
     const user = req.user!;
@@ -165,6 +172,7 @@ app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: R
 
 
 // GET ALL (for specific lists)
+// FIX: Use imported Response type.
 app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.part.findMany()));
 app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.user.findMany({
     select: { 
@@ -176,6 +184,7 @@ app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) =>
 
 
 // ADD MAINTENANCE RECORD
+// FIX: Use imported Response type.
 app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { machineId, description, usedParts, timestamp } = req.body;
     const newRecord = await prisma.maintenanceRecord.create({
@@ -207,6 +216,7 @@ const modelMapping: Record<EntityType, any> = {
     parts: prisma.part,
 };
 
+// FIX: Use imported Response and NextFunction types.
 const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (req.user?.role !== 'ADMIN') {
         return res.status(403).json({ message: 'Admin access required' });
@@ -230,19 +240,49 @@ const toCsv = (headers: string[], data: any[]): string => {
 };
 
 const parseCsv = (csvString: string): Record<string, string>[] => {
-    const [headerLine, ...lines] = csvString.replace(/\r/g, "").trim().split('\n');
-    if (!headerLine) return [];
-    const headers = headerLine.split(',').map(h => h.trim());
-    return lines.map(line => {
-        // Basic parser, does not handle commas inside quotes.
-        const values = line.split(',');
-        return headers.reduce((obj, header, index) => {
-            obj[header] = values[index]?.trim();
-            return obj;
-        }, {} as Record<string, string>);
-    });
+    // Remove UTF-8 BOM if present
+    if (csvString.startsWith('\uFEFF')) {
+        csvString = csvString.substring(1);
+    }
+    
+    const lines = csvString.replace(/\r/g, "").trim().split('\n');
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim());
+    const dataLines = lines.slice(1);
+    
+    // This regex handles quoted fields, including commas and escaped quotes ("") inside.
+    const csvRegex = /(?:"((?:[^"]|"")*)"|([^,]*))(,|$)/g;
+
+    return dataLines.map(line => {
+        if (!line.trim()) return null;
+
+        const values: string[] = [];
+        let match;
+        csvRegex.lastIndex = 0; // Reset regex state for each line
+
+        while (match = csvRegex.exec(line)) {
+            // match[1] is the content of a quoted field, match[2] is an unquoted field
+            const value = match[1] !== undefined 
+                ? match[1].replace(/""/g, '"') // Unescape double quotes
+                : (match[2] || '');
+            values.push(value.trim());
+            
+            if (match[3] === '') break; // End of the line
+        }
+
+        if (values.length >= headers.length) {
+            return headers.reduce((obj, header, index) => {
+                obj[header] = values[index] || '';
+                return obj;
+            }, {} as Record<string, string>);
+        }
+        return null;
+    }).filter(record => record !== null) as Record<string, string>[];
 };
 
+
+// FIX: Use imported Response type.
 app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType } = req.params;
     if (!['parts', 'points', 'machines'].includes(entityType)) {
@@ -278,6 +318,7 @@ app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: 
 });
 
 
+// FIX: Use imported Request and Response types.
 app.post('/api/:entityType/import', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
     const { entityType } = req.params;
     const { csvData } = req.body;
@@ -336,6 +377,7 @@ app.post('/api/:entityType/import', authMiddleware, adminMiddleware, async (req:
 });
 
 
+// FIX: Use imported Response type.
 app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
@@ -355,6 +397,7 @@ app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRe
     res.status(201).json(newEntity);
 });
 
+// FIX: Use imported Response type.
 app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
@@ -388,6 +431,7 @@ app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: Aut
     }
 });
 
+// FIX: Use imported Response type.
 app.delete('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
