@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Coffee, KeyRound, LogIn } from 'lucide-react';
+import { Coffee, KeyRound, LogIn, Eye, EyeOff } from 'lucide-react';
 
 const LoginScreen: React.FC = () => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const { login: authLogin, loading, error } = useAuth();
   const navigate = useNavigate();
 
@@ -47,19 +48,27 @@ const LoginScreen: React.FC = () => {
                 onChange={(e) => setLogin(e.target.value)}
               />
             </div>
-            <div>
+            <div className="relative">
               <label htmlFor="password" className="sr-only">Пароль</label>
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
-                className={`${inputBaseClasses} rounded-b-md`}
+                className={`${inputBaseClasses} rounded-b-md pr-10`}
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 z-10 flex items-center pr-3 text-gray-500 hover:text-brand-primary"
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
             </div>
           </div>
 

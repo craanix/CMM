@@ -1,7 +1,9 @@
 // server/prisma/seed.ts
 
-// FIX: Consolidate Prisma imports into a single statement to fix potential module resolution errors.
-import { PrismaClient, Role, type Prisma } from '@prisma/client';
+// FIX: Correct Prisma import. `Prisma` is a namespace used to access types, so it should be imported as a value.
+// FIX: Changed import to use namespace and destructuring to fix module resolution errors.
+import * as PrismaAll from '@prisma/client';
+const { PrismaClient, Role, Prisma } = PrismaAll;
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';

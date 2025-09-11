@@ -1,11 +1,14 @@
 // FIX: Import specific types from express to resolve type errors with Request and Response objects.
-import express, { type Request, type Response, type NextFunction } from 'express';
+// FIX: Removed `type` keyword from express import to ensure correct type resolution for Request, Response, and NextFunction.
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-// FIX: Consolidate Prisma imports into a single statement to fix potential module resolution issues.
-import { PrismaClient, MachineStatus, type User, type Region } from '@prisma/client';
+// FIX: Correct Prisma imports by removing the `type` keyword for model types. This allows TypeScript to resolve them correctly and should fix cascading type errors.
+// FIX: Changed import to use namespace and destructuring to fix module resolution errors.
+import * as PrismaAll from '@prisma/client';
+const { PrismaClient, MachineStatus, User, Region } = PrismaAll;
 
 
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
