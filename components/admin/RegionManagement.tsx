@@ -1,9 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
-import type { Region, User } from '../../types';
-import { Role } from '../../types';
-import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
+import type { Region } from '../../types';
+import { PlusCircle, Edit, Trash2, Search, AlertTriangle } from 'lucide-react';
 
 const RegionManagement: React.FC = () => {
     const [regions, setRegions] = useState<Region[]>([]);
@@ -11,6 +11,7 @@ const RegionManagement: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [regionToDelete, setRegionToDelete] = useState<Region | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -43,13 +44,31 @@ const RegionManagement: React.FC = () => {
         fetchData();
         handleCloseModal();
     };
-
-    const handleDeleteRegion = async (regionId: string) => {
-        if (window.confirm('Вы уверены, что хотите удалить этот регион? Все связанные точки и аппараты также будут затронуты.')) {
-            await api.deleteEntity('regions', regionId);
-            fetchData();
-        }
+    
+    const handleDeleteClick = (region: Region) => {
+        setRegionToDelete(region);
     };
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (regionToDelete) {
+            await api.deleteEntity('regions', regionToDelete.id);
+            fetchData();
+            setRegionToDelete(null);
+        }
+    }, [regionToDelete, fetchData]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (regionToDelete && event.key === 'Enter') {
+                handleConfirmDelete();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [regionToDelete, handleConfirmDelete]);
 
     const filteredRegions = useMemo(() => {
         if (!searchTerm) return regions;
@@ -107,7 +126,7 @@ const RegionManagement: React.FC = () => {
                                 <td className="p-3 flex justify-end md:justify-center items-center md:table-cell">
                                     <div className="flex gap-2">
                                         <button onClick={() => handleOpenModal(region)} className="text-blue-600 hover:text-blue-800 p-1 transition-colors" title="Редактировать"><Edit size={18} /></button>
-                                        <button onClick={() => handleDeleteRegion(region.id)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18} /></button>
+                                        <button onClick={() => handleDeleteClick(region)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18} /></button>
                                     </div>
                                 </td>
                             </tr>
@@ -120,6 +139,40 @@ const RegionManagement: React.FC = () => {
             </div>
 
             {isModalOpen && <RegionModal region={currentRegion} onSave={handleSaveRegion} onClose={handleCloseModal} />}
+            
+            {regionToDelete && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <AlertTriangle className="h-6 w-6 text-status-error" aria-hidden="true" />
+                            </div>
+                            <div className="ml-4 flex-grow">
+                                <h3 className="text-xl font-bold text-brand-primary">Удалить регион</h3>
+                                <p className="text-gray-600 mt-2">
+                                    Вы уверены, что хотите удалить регион <span className="font-bold">{regionToDelete.name}</span>? Все связанные точки и аппараты также будут удалены. Это действие нельзя отменить.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-5 mt-4 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setRegionToDelete(null)}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDelete}
+                                className="px-4 py-2 bg-status-error text-white rounded-lg hover:bg-red-700 font-semibold transition-colors"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,48 +1,38 @@
-# server/Dockerfile
+# Stage 1: Build stage
+FROM node:20-alpine AS builder
 
-# --- Base image with common dependencies ---
-# Используем Debian-based 'slim' вариант для лучшей совместимости с бинарными зависимостями, как у Prisma.
-# Это решает проблемы с отсутствующими библиотеками вроде libssl на Alpine.
-FROM node:20-slim AS base
-
-# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Устанавливаем OpenSSL, зависимость для Prisma.
-RUN apt-get update && apt-get install -y openssl
-
-# --- Builder Stage ---
-# Этот этап устанавливает все зависимости (включая dev) и собирает приложение.
-FROM base AS builder
-
-# Копируем файлы package.json и устанавливаем все зависимости.
+# Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Копируем остальной исходный код и Prisma схему.
-COPY . .
+# Copy prisma schema
+COPY prisma ./prisma/
 
-# Генерируем Prisma клиент.
+# Generate Prisma Client
 RUN npx prisma generate
 
-# Компилируем TypeScript в JavaScript.
+# Copy the rest of the application source code
+COPY . .
+
+# Build the TypeScript project
 RUN npm run build
 
-# Удаляем dev-зависимости, чтобы подготовить маленький production-образ.
-RUN npm prune --production
+# Stage 2: Production stage
+FROM node:20-alpine
 
-# --- Production Stage ---
-# Этот этап создает финальный, легковесный образ для запуска приложения.
-FROM base AS production
+WORKDIR /app
 
-# Копируем только необходимые для production файлы из builder-этапа.
-COPY --from=builder /app/package.json ./package.json
+# Copy dependencies from builder stage
 COPY --from=builder /app/node_modules ./node_modules
+# Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
+# Copy prisma schema for runtime
 COPY --from=builder /app/prisma ./prisma
+COPY package*.json ./
 
-# Открываем порт приложения.
 EXPOSE 4000
 
-# Команда для запуска приложения.
+# Command to run the application
 CMD ["npm", "start"]

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 import type { User, Region } from '../../types';
 import { Role } from '../../types';
-import { PlusCircle, Edit, Trash2, Search, Clipboard, Check, Info } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Clipboard, Check, Info, AlertTriangle } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -14,6 +14,7 @@ const UserManagement: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [newCredentials, setNewCredentials] = useState<{login: string, password: string} | null>(null);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -55,10 +56,15 @@ const UserManagement: React.FC = () => {
         handleCloseModal();
     };
     
-    const handleDeleteUser = async (userId: string) => {
-        if (window.confirm('Вы уверены, что хотите удалить этого пользователя?')) {
-            await api.deleteEntity('users', userId);
+    const handleDeleteClick = (user: User) => {
+        setUserToDelete(user);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (userToDelete) {
+            await api.deleteEntity('users', userToDelete.id);
             fetchData();
+            setUserToDelete(null);
         }
     };
 
@@ -135,7 +141,7 @@ const UserManagement: React.FC = () => {
                                 <td className="p-3 flex justify-end md:justify-center items-center md:table-cell">
                                     <div className="flex gap-2">
                                         <button onClick={() => handleOpenModal(user)} className="text-blue-600 hover:text-blue-800 p-1 transition-colors" title="Редактировать"><Edit size={18}/></button>
-                                        <button onClick={() => handleDeleteUser(user.id)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18}/></button>
+                                        <button onClick={() => handleDeleteClick(user)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18}/></button>
                                     </div>
                                 </td>
                             </tr>
@@ -149,6 +155,40 @@ const UserManagement: React.FC = () => {
 
             {isModalOpen && <UserModal user={currentUser} regions={regions} onSave={handleSaveUser} onClose={handleCloseModal} />}
             {newCredentials && <CredentialsModal credentials={newCredentials} onClose={() => setNewCredentials(null)} />}
+            
+            {userToDelete && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <AlertTriangle className="h-6 w-6 text-status-error" aria-hidden="true" />
+                            </div>
+                            <div className="ml-4 flex-grow">
+                                <h3 className="text-xl font-bold text-brand-primary">Удалить пользователя</h3>
+                                <p className="text-gray-600 mt-2">
+                                    Вы уверены, что хотите удалить пользователя <span className="font-bold">{userToDelete.name}</span> ({userToDelete.login})? Это действие нельзя отменить.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-5 mt-4 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setUserToDelete(null)}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDelete}
+                                className="px-4 py-2 bg-status-error text-white rounded-lg hover:bg-red-700 font-semibold transition-colors"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

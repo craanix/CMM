@@ -1,9 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
-import type { Point, Region, User } from '../../types';
-import { Role } from '../../types';
-import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
+import type { Point, Region } from '../../types';
+import { PlusCircle, Edit, Trash2, Search, AlertTriangle } from 'lucide-react';
 
 const PointManagement: React.FC = () => {
     const [points, setPoints] = useState<Point[]>([]);
@@ -12,6 +12,7 @@ const PointManagement: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [pointToDelete, setPointToDelete] = useState<Point | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -46,12 +47,30 @@ const PointManagement: React.FC = () => {
         handleCloseModal();
     };
 
-    const handleDeletePoint = async (pointId: string) => {
-        if (window.confirm('Вы уверены, что хотите удалить эту точку?')) {
-            await api.deleteEntity('points', pointId);
-            fetchData();
-        }
+    const handleDeleteClick = (point: Point) => {
+        setPointToDelete(point);
     };
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (pointToDelete) {
+            await api.deleteEntity('points', pointToDelete.id);
+            fetchData();
+            setPointToDelete(null);
+        }
+    }, [pointToDelete, fetchData]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (pointToDelete && event.key === 'Enter') {
+                handleConfirmDelete();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [pointToDelete, handleConfirmDelete]);
 
     const filteredPoints = useMemo(() => {
         if (!searchTerm) return points;
@@ -118,7 +137,7 @@ const PointManagement: React.FC = () => {
                                 <td className="p-3 flex justify-end md:justify-center items-center md:table-cell">
                                     <div className="flex gap-2">
                                         <button onClick={() => handleOpenModal(point)} className="text-blue-600 hover:text-blue-800 p-1 transition-colors" title="Редактировать"><Edit size={18} /></button>
-                                        <button onClick={() => handleDeletePoint(point.id)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18} /></button>
+                                        <button onClick={() => handleDeleteClick(point)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18} /></button>
                                     </div>
                                 </td>
                             </tr>
@@ -131,6 +150,40 @@ const PointManagement: React.FC = () => {
             </div>
 
             {isModalOpen && <PointModal point={currentPoint} regions={regions} onSave={handleSavePoint} onClose={handleCloseModal} />}
+
+            {pointToDelete && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <AlertTriangle className="h-6 w-6 text-status-error" aria-hidden="true" />
+                            </div>
+                            <div className="ml-4 flex-grow">
+                                <h3 className="text-xl font-bold text-brand-primary">Удалить точку</h3>
+                                <p className="text-gray-600 mt-2">
+                                    Вы уверены, что хотите удалить точку <span className="font-bold">{pointToDelete.name}</span>? Все связанные аппараты также будут удалены. Это действие нельзя отменить.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-5 mt-4 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setPointToDelete(null)}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDelete}
+                                className="px-4 py-2 bg-status-error text-white rounded-lg hover:bg-red-700 font-semibold transition-colors"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,9 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
-import type { Part, User } from '../../types';
-import { Role } from '../../types';
-import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
+import type { Part } from '../../types';
+import { PlusCircle, Edit, Trash2, Search, AlertTriangle } from 'lucide-react';
 
 const PartManagement: React.FC = () => {
     const [parts, setParts] = useState<Part[]>([]);
@@ -11,6 +11,7 @@ const PartManagement: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentPart, setCurrentPart] = useState<Part | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [partToDelete, setPartToDelete] = useState<Part | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -44,12 +45,31 @@ const PartManagement: React.FC = () => {
         handleCloseModal();
     };
 
-    const handleDeletePart = async (partId: string) => {
-        if (window.confirm('Вы уверены, что хотите удалить эту запчасть?')) {
-            await api.deleteEntity('parts', partId);
-            fetchData();
-        }
+    const handleDeleteClick = (part: Part) => {
+        setPartToDelete(part);
     };
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (partToDelete) {
+            await api.deleteEntity('parts', partToDelete.id);
+            fetchData();
+            setPartToDelete(null);
+        }
+    }, [partToDelete, fetchData]);
+    
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (partToDelete && event.key === 'Enter') {
+                handleConfirmDelete();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [partToDelete, handleConfirmDelete]);
+
 
     const filteredParts = useMemo(() => {
         if (!searchTerm) return parts;
@@ -111,7 +131,7 @@ const PartManagement: React.FC = () => {
                                 <td className="p-3 flex justify-end md:justify-center items-center md:table-cell">
                                     <div className="flex gap-2">
                                         <button onClick={() => handleOpenModal(part)} className="text-blue-600 hover:text-blue-800 p-1 transition-colors" title="Редактировать"><Edit size={18} /></button>
-                                        <button onClick={() => handleDeletePart(part.id)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18} /></button>
+                                        <button onClick={() => handleDeleteClick(part)} className="text-status-error hover:text-red-800 p-1 transition-colors" title="Удалить"><Trash2 size={18} /></button>
                                     </div>
                                 </td>
                             </tr>
@@ -124,6 +144,40 @@ const PartManagement: React.FC = () => {
             </div>
 
             {isModalOpen && <PartModal part={currentPart} onSave={handleSavePart} onClose={handleCloseModal} />}
+
+            {partToDelete && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <AlertTriangle className="h-6 w-6 text-status-error" aria-hidden="true" />
+                            </div>
+                            <div className="ml-4 flex-grow">
+                                <h3 className="text-xl font-bold text-brand-primary">Удалить запчасть</h3>
+                                <p className="text-gray-600 mt-2">
+                                    Вы уверены, что хотите удалить запчасть <span className="font-bold">{partToDelete.name}</span>? Это действие нельзя отменить.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-5 mt-4 border-t border-gray-200">
+                            <button
+                                type="button"
+                                onClick={() => setPartToDelete(null)}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDelete}
+                                className="px-4 py-2 bg-status-error text-white rounded-lg hover:bg-red-700 font-semibold transition-colors"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

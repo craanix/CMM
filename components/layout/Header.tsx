@@ -38,14 +38,24 @@ const Header: React.FC = () => {
                </span>
             </div>
 
-            <button
-              onClick={() => setIsProfileModalOpen(true)}
-              className="flex items-center gap-2 p-2 rounded-md hover:bg-brand-secondary/80 transition-colors"
-              aria-label="Открыть профиль"
-            >
-              <UserCircle className="w-5 h-5 text-brand-accent" />
-              <span className="hidden sm:inline font-medium">{user?.name}</span>
-            </button>
+            {user?.role === Role.ADMIN ? (
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-brand-secondary/80 transition-colors"
+                aria-label="Открыть профиль"
+              >
+                <UserCircle className="w-5 h-5 text-brand-accent" />
+                <span className="hidden sm:inline font-medium">{user?.name}</span>
+              </button>
+            ) : (
+              <div
+                className="flex items-center gap-2 p-2 rounded-md"
+                aria-label="Профиль пользователя"
+              >
+                <UserCircle className="w-5 h-5 text-brand-accent" />
+                <span className="hidden sm:inline font-medium">{user?.name}</span>
+              </div>
+            )}
 
             <NavLink
               to="/reports"
@@ -86,7 +96,7 @@ const Header: React.FC = () => {
           </div>
         </div>
       </header>
-      {isProfileModalOpen && <ProfileModal onClose={() => setIsProfileModalOpen(false)} />}
+      {isProfileModalOpen && user?.role === Role.ADMIN && <ProfileModal onClose={() => setIsProfileModalOpen(false)} />}
     </>
   );
 };
