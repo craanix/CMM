@@ -1,6 +1,6 @@
 // server/prisma/seed.ts
 
-// FIX: Change namespace import to named imports for PrismaClient and types.
+// FIX: Use named imports for Prisma Client and types to resolve module resolution issues.
 import { PrismaClient, Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
@@ -11,23 +11,16 @@ declare const __dirname: string;
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
 declare const process: any;
 
-// FIX: Instantiate PrismaClient directly from the import.
 const prisma = new PrismaClient();
 
 // Определяем интерфейс для данных, чтобы TypeScript "понимал" структуру db.json
 interface DbData {
-  // FIX: Correct Prisma type references.
   regions: Prisma.RegionCreateInput[];
   // ИСПРАВЛЕНИЕ: Переименовано 'password_plain' в 'password' для соответствия структуре db.json
-  // FIX: Correct Prisma type references.
-  users: (Omit<Prisma.UserCreateInput, 'role'> & { password: string; role: string })[];
-  // FIX: Correct Prisma type references.
+  users: (Omit<Prisma.UserCreateInput, 'role' | 'regions'> & { password: string; role: string; regionIds?: string[] })[];
   points: Prisma.PointCreateInput[];
-  // FIX: Correct Prisma type references.
   machines: Prisma.MachineCreateInput[];
-  // FIX: Correct Prisma type references.
   parts: Prisma.PartCreateInput[];
-  // FIX: Correct Prisma type references.
   maintenanceRecords: (Omit<Prisma.MaintenanceRecordCreateInput, 'timestamp'> & { timestamp: string; usedParts: { partId: string; quantity: number }[] })[];
 }
 
@@ -53,18 +46,18 @@ async function main() {
   // Seed Users with hashed passwords
   console.log('Seeding users...');
   for (const user of dbData.users) {
-    // ИСПРАВЛЕНИЕ: Используем 'user.password' вместо 'user.password_plain' для хеширования
     const hashedPassword = await bcrypt.hash(user.password, 10);
-    // ИСПРАВЛЕНИЕ: Деструктурируем 'password', чтобы удалить его из данных для Prisma
-    const { password, ...userData } = user;
+    const { password, regionIds, ...userData } = user;
     await prisma.user.upsert({
       where: { id: user.id },
       update: {},
       create: {
         ...userData,
         password: hashedPassword,
-        // FIX: Use the imported Role enum directly.
         role: user.role as Role,
+        regions: {
+          connect: regionIds?.map((id: string) => ({ id })) || []
+        }
       },
     });
   }

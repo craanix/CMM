@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 import type { User, Region } from '../../types';
 import { Role } from '../../types';
-import { PlusCircle, Edit, Trash2, Search, Clipboard, Check, Info, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Clipboard, Check, Info, AlertTriangle, KeyRound } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -20,7 +20,6 @@ const UserManagement: React.FC = () => {
         setLoading(true);
         const [userData, allData] = await Promise.all([
             api.getAllUsers(),
-            // FIX: api.getAllDataForUser expects 0 arguments. Admin role is inferred from auth token on the server.
             api.getAllDataForUser()
         ]);
         setUsers(userData);
@@ -42,13 +41,19 @@ const UserManagement: React.FC = () => {
         setCurrentUser(null);
     };
     
-    const handleSaveUser = async (userToSave: Omit<User, 'id'> | User) => {
-        if ('id' in userToSave) {
-            await api.updateEntity('users', userToSave);
+    const handleSaveUser = async (userToSave: Omit<User, 'id' | 'regions'> & { regionIds?: string[] } | User) => {
+        const payload: any = { ...userToSave };
+        // The frontend user object has a full 'regions' array, but the API expects 'regionIds' for mutations.
+        if (payload.regions) {
+            payload.regionIds = payload.regions.map((r: Region) => r.id);
+            delete payload.regions;
+        }
+
+        if ('id' in payload) {
+            await api.updateEntity('users', payload);
         } else {
             const generatedPassword = Math.random().toString(36).slice(2, 10);
-            const newUserPayload = { ...userToSave, password: generatedPassword };
-            // FIX: Explicitly specify the generic type for `api.addEntity` to ensure `createdUser` is correctly typed.
+            const newUserPayload = { ...payload, password: generatedPassword };
             const createdUser = await api.addEntity<User>('users', newUserPayload);
             setNewCredentials({ login: createdUser.login, password: generatedPassword });
         }
@@ -115,7 +120,7 @@ const UserManagement: React.FC = () => {
                             <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Имя</th>
                             <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Логин</th>
                             <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Роль</th>
-                            <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Регион</th>
+                            <th className="py-3 px-4 text-left text-sm font-bold text-brand-primary uppercase tracking-wider">Регионы</th>
                             <th className="py-3 px-4 text-center text-sm font-bold text-brand-primary uppercase tracking-wider">Действия</th>
                         </tr>
                     </thead>
@@ -135,8 +140,8 @@ const UserManagement: React.FC = () => {
                                     <span className="text-gray-700">{user.role === Role.ADMIN ? 'Администратор' : 'Техник'}</span>
                                 </td>
                                 <td className="p-3 flex justify-between items-center border-b md:border-none md:table-cell">
-                                    <span className="font-semibold text-brand-primary/90 md:hidden">Регион</span>
-                                    <span className="text-gray-700">{regions.find(r => r.id === user.regionId)?.name || 'N/A'}</span>
+                                    <span className="font-semibold text-brand-primary/90 md:hidden">Регионы</span>
+                                    <span className="text-gray-700 text-right md:text-left">{user.regions?.map(r => r.name).join(', ') || 'N/A'}</span>
                                 </td>
                                 <td className="p-3 flex justify-end md:justify-center items-center md:table-cell">
                                     <div className="flex gap-2">
@@ -196,30 +201,61 @@ const UserManagement: React.FC = () => {
 interface UserModalProps {
     user: User | null;
     regions: Region[];
-    onSave: (user: Omit<User, 'id'> | User) => void;
+    onSave: (user: Omit<User, 'id' | 'regions'> & { regionIds?: string[] } | User) => void;
     onClose: () => void;
 }
 
 const UserModal: React.FC<UserModalProps> = ({ user, regions, onSave, onClose }) => {
-    const [formData, setFormData] = useState<Partial<User>>({
+    const [formData, setFormData] = useState({
         name: user?.name || '',
         login: user?.login || '',
         role: user?.role || Role.TECHNICIAN,
-        regionId: user?.regionId || null,
+        regionIds: user?.regions?.map(r => r.id) || [],
     });
+    const [newPassword, setNewPassword] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    const handleGeneratePassword = () => {
+        const generated = Math.random().toString(36).slice(2, 10);
+        setNewPassword(generated);
+        setCopied(false); // Reset copied state if generating a new one
+    };
+
+    const handleCopyPassword = async () => {
+        if (!newPassword) return;
+        try {
+            await navigator.clipboard.writeText(newPassword);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+        } catch (err) {
+            console.error('Failed to copy password:', err);
+        }
+    };
     
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         if (name === 'role' && value === Role.ADMIN) {
-             setFormData(prev => ({ ...prev, role: value, regionId: null }));
+             setFormData(prev => ({ ...prev, role: value as Role, regionIds: [] }));
         } else {
-             setFormData(prev => ({ ...prev, [name]: value === 'null' ? null : value }));
+             setFormData(prev => ({ ...prev, [name]: value }));
         }
+    };
+    
+    const handleRegionChange = (regionId: string) => {
+        setFormData(prev => {
+            const newRegionIds = prev.regionIds.includes(regionId)
+                ? prev.regionIds.filter(id => id !== regionId)
+                : [...prev.regionIds, regionId];
+            return { ...prev, regionIds: newRegionIds };
+        });
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(user ? { ...user, ...formData } : formData as Omit<User, 'id'>);
+        const payload = user 
+            ? { ...user, ...formData, ...(newPassword && { password: newPassword }) } 
+            : formData;
+        onSave(payload);
     };
 
     const labelClasses = "block text-sm font-medium text-brand-primary";
@@ -227,31 +263,74 @@ const UserModal: React.FC<UserModalProps> = ({ user, regions, onSave, onClose })
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4 max-h-[90vh] overflow-y-auto">
                 <h3 className="text-xl font-bold mb-4 text-brand-primary">{user ? 'Редактировать пользователя' : 'Добавить пользователя'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label htmlFor="userName" className={labelClasses}>Имя</label>
-                        <input id="userName" type="text" name="name" value={formData.name} onChange={handleChange} className={inputClasses} required/>
+                        <input id="userName" type="text" name="name" value={formData.name} onChange={handleFormChange} className={inputClasses} required/>
                     </div>
                      <div>
                         <label htmlFor="userLogin" className={labelClasses}>Логин</label>
-                        <input id="userLogin" type="text" name="login" value={formData.login} onChange={handleChange} className={inputClasses} required/>
+                        <input id="userLogin" type="text" name="login" value={formData.login} onChange={handleFormChange} className={inputClasses} required/>
                     </div>
                     <div>
                         <label htmlFor="userRole" className={labelClasses}>Роль</label>
-                        <select id="userRole" name="role" value={formData.role} onChange={handleChange} className={inputClasses}>
+                        <select id="userRole" name="role" value={formData.role} onChange={handleFormChange} className={inputClasses}>
                             <option value={Role.ADMIN}>Администратор</option>
                             <option value={Role.TECHNICIAN}>Техник</option>
                         </select>
                     </div>
                      {formData.role === Role.TECHNICIAN && (
                         <div>
-                            <label htmlFor="userRegion" className={labelClasses}>Регион</label>
-                            <select id="userRegion" name="regionId" value={formData.regionId || 'null'} onChange={handleChange} className={inputClasses} required={formData.role === Role.TECHNICIAN}>
-                                 <option value="null" disabled>Выберите регион</option>
-                                {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                            </select>
+                            <label className={labelClasses}>Регионы</label>
+                            <div className="mt-2 p-3 border border-gray-300 rounded-md max-h-48 overflow-y-auto space-y-2">
+                                {regions.length > 0 ? regions.map(r => (
+                                    <div key={r.id} className="flex items-center">
+                                        <input
+                                            id={`region-${r.id}`}
+                                            type="checkbox"
+                                            checked={formData.regionIds.includes(r.id)}
+                                            onChange={() => handleRegionChange(r.id)}
+                                            className="h-4 w-4 rounded border-gray-300 text-brand-primary focus:ring-brand-secondary"
+                                        />
+                                        <label htmlFor={`region-${r.id}`} className="ml-3 block text-sm text-brand-primary">{r.name}</label>
+                                    </div>
+                                )) : <p className="text-sm text-gray-500">Регионы не найдены.</p>}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {user && (
+                        <div className="pt-2">
+                            <label className={labelClasses}>Сброс пароля</label>
+                            <div className="mt-2 p-3 border border-gray-200 rounded-md bg-gray-50/50">
+                                {newPassword ? (
+                                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                                        <code className="text-lg font-bold font-mono bg-gray-200 p-2 rounded flex-grow text-center sm:text-left w-full sm:w-auto">
+                                            {newPassword}
+                                        </code>
+                                        <button
+                                            type="button"
+                                            onClick={handleCopyPassword}
+                                            className="flex items-center justify-center gap-2 w-full sm:w-auto px-3 py-2 bg-brand-secondary text-white rounded-md hover:bg-brand-primary font-semibold transition-colors text-sm"
+                                        >
+                                            {copied ? <Check className="w-4 h-4" /> : <Clipboard className="w-4 h-4" />}
+                                            {copied ? 'Скопировано' : 'Копировать'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-600">Нажмите кнопку, чтобы сгенерировать новый пароль для пользователя. Пароль будет показан здесь.</p>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleGeneratePassword}
+                                    className="mt-3 flex items-center justify-center gap-2 w-full px-4 py-2 bg-white text-brand-primary border border-brand-secondary rounded-lg hover:bg-brand-accent font-semibold transition-colors shadow-sm"
+                                >
+                                    <KeyRound className="w-4 h-4" />
+                                    {newPassword ? 'Сгенерировать другой' : 'Сгенерировать новый пароль'}
+                                </button>
+                            </div>
                         </div>
                     )}
                      {!user && (

@@ -1,15 +1,20 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
-import type { Point, Region } from '../../types';
-import { PlusCircle, Edit, Trash2, Search, AlertTriangle } from 'lucide-react';
+// FIX: Import ImportSummary directly from types
+import type { Point, Region, ImportSummary } from '../../types';
+import { PlusCircle, Edit, Trash2, Search, AlertTriangle, Upload, Download } from 'lucide-react';
+import ImportModal from './ImportModal';
+
 
 const PointManagement: React.FC = () => {
     const [points, setPoints] = useState<Point[]>([]);
     const [regions, setRegions] = useState<Region[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [pointToDelete, setPointToDelete] = useState<Point | null>(null);
@@ -71,6 +76,18 @@ const PointManagement: React.FC = () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [pointToDelete, handleConfirmDelete]);
+    
+    const handleExport = async () => {
+        await api.exportEntities('points');
+    };
+
+    // FIX: Changed api.ImportSummary to ImportSummary
+    const handleImport = async (csvData: string): Promise<ImportSummary> => {
+        const summary = await api.importEntities('points', csvData);
+        fetchData(); // Refresh data after import
+        return summary;
+    };
+
 
     const filteredPoints = useMemo(() => {
         if (!searchTerm) return points;
@@ -91,13 +108,21 @@ const PointManagement: React.FC = () => {
         <div className="p-4 sm:p-6 bg-white rounded-lg shadow">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-brand-primary">Управление точками</h2>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-semibold transition-colors shadow-sm"
-                >
-                    <PlusCircle className="w-5 h-5" />
-                    Добавить точку
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors shadow-sm text-sm">
+                        <Upload className="w-4 h-4" /> Импорт
+                    </button>
+                    <button onClick={handleExport} className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors shadow-sm text-sm">
+                        <Download className="w-4 h-4" /> Экспорт
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-semibold transition-colors shadow-sm text-sm"
+                    >
+                        <PlusCircle className="w-5 h-5" />
+                        Добавить точку
+                    </button>
+                </div>
             </div>
             <div className="mb-4 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -150,6 +175,15 @@ const PointManagement: React.FC = () => {
             </div>
 
             {isModalOpen && <PointModal point={currentPoint} regions={regions} onSave={handleSavePoint} onClose={handleCloseModal} />}
+
+            {isImportModalOpen && (
+                <ImportModal
+                    entityName="точек"
+                    csvHeaders={['name', 'address', 'region_name']}
+                    onImport={handleImport}
+                    onClose={() => setIsImportModalOpen(false)}
+                />
+            )}
 
             {pointToDelete && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">

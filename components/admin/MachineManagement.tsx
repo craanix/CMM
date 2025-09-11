@@ -1,10 +1,13 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
-import type { Machine, Region, Point } from '../../types';
+// FIX: Import ImportSummary directly from types
+import type { Machine, Region, Point, ImportSummary } from '../../types';
 import { MachineStatus } from '../../types';
-import { PlusCircle, Edit, Trash2, Search, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, AlertTriangle, Upload, Download } from 'lucide-react';
+import ImportModal from './ImportModal';
 
 const StatusBadge: React.FC<{ status: MachineStatus }> = ({ status }) => {
     const statusStyles: Record<MachineStatus, { text: string; bg: string; textColor: string; }> = {
@@ -26,6 +29,7 @@ const MachineManagement: React.FC = () => {
     const [points, setPoints] = useState<Point[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [currentMachine, setCurrentMachine] = useState<Machine | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<MachineStatus | ''>('');
@@ -90,6 +94,17 @@ const MachineManagement: React.FC = () => {
         };
     }, [machineToDelete, handleConfirmDelete]);
 
+    const handleExport = async () => {
+        await api.exportEntities('machines');
+    };
+
+    // FIX: Changed api.ImportSummary to ImportSummary
+    const handleImport = async (csvData: string): Promise<ImportSummary> => {
+        const summary = await api.importEntities('machines', csvData);
+        fetchData(); // Refresh data after import
+        return summary;
+    };
+
     const filteredMachines = useMemo(() => {
         return machines.filter(machine => {
             // Status filter
@@ -125,13 +140,21 @@ const MachineManagement: React.FC = () => {
         <div className="p-4 sm:p-6 bg-white rounded-lg shadow">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-brand-primary">Управление аппаратами</h2>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-semibold transition-colors shadow-sm"
-                >
-                    <PlusCircle className="w-5 h-5" />
-                    Добавить аппарат
-                </button>
+                 <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors shadow-sm text-sm">
+                        <Upload className="w-4 h-4" /> Импорт
+                    </button>
+                    <button onClick={handleExport} className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors shadow-sm text-sm">
+                        <Download className="w-4 h-4" /> Экспорт
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-semibold transition-colors shadow-sm text-sm"
+                    >
+                        <PlusCircle className="w-5 h-5" />
+                        Добавить аппарат
+                    </button>
+                </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <div className="relative flex-grow">
@@ -211,6 +234,15 @@ const MachineManagement: React.FC = () => {
 
             {isModalOpen && <MachineModal machine={currentMachine} regions={regions} points={points} onSave={handleSaveMachine} onClose={handleCloseModal} />}
             
+            {isImportModalOpen && (
+                <ImportModal
+                    entityName="аппаратов"
+                    csvHeaders={['serialNumber', 'name', 'status', 'region_name', 'point_name']}
+                    onImport={handleImport}
+                    onClose={() => setIsImportModalOpen(false)}
+                />
+            )}
+
             {machineToDelete && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
                     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">

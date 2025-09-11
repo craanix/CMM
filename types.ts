@@ -17,7 +17,7 @@ export interface User {
   login: string;
   password?: string; // Should not be sent to client in a real app
   role: Role;
-  regionId: string | null;
+  regions: Region[];
 }
 
 export interface Region {
@@ -68,4 +68,10 @@ export interface AllData {
   users: User[],
   maintenanceRecords: MaintenanceRecord[],
   parts: Part[],
+}
+
+export interface ImportSummary {
+    created: number;
+    updated: number;
+    errors: string[];
 }

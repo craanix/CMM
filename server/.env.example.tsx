@@ -1,4 +1,3 @@
-// FIX: The file content was wrapped in a multi-line comment to resolve TypeScript parsing errors caused by the incorrect .tsx file extension. The file's content is intended as an example for a .env file, not as executable code.
 /*
 # -----------------------------
 # DATABASE CONFIGURATION

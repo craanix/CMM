@@ -17,7 +17,7 @@
       "login": "admin",
       "password": "password123",
       "role": "ADMIN",
-      "regionId": null
+      "regionIds": []
     },
     {
       "id": "clw9k2f1c0003a5mbc2n91p1a",
@@ -25,7 +25,7 @@
       "login": "tech1",
       "password": "password123",
       "role": "TECHNICIAN",
-      "regionId": "clw9k1n9o0000a5mbbnhd6sml"
+      "regionIds": ["clw9k1n9o0000a5mbbnhd6sml"]
     },
     {
       "id": "clw9k2f1d0004a5mb42h79x0o",
@@ -33,7 +33,7 @@
       "login": "tech2",
       "password": "password123",
       "role": "TECHNICIAN",
-      "regionId": "clw9k1n9o0000a5mbbnhd6sml"
+      "regionIds": ["clw9k1n9o0000a5mbbnhd6sml", "clw9k1n9o0001a5mb2b43b1z9"]
     },
     {
       "id": "clw9k2f1d0005a5mbc8z16z8u",
@@ -41,7 +41,7 @@
       "login": "tech3",
       "password": "password123",
       "role": "TECHNICIAN",
-      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+      "regionIds": ["clw9k1n9o0001a5mb2b43b1z9"]
     },
     {
       "id": "clw9k2f1d0006a5mbhff138w6",
@@ -49,7 +49,7 @@
       "login": "tech4",
       "password": "password123",
       "role": "TECHNICIAN",
-      "regionId": "clw9k1n9o0001a5mb2b43b1z9"
+      "regionIds": ["clw9k1n9o0001a5mb2b43b1z9", "clw9k1n9o0000a5mbbnhd6sml"]
     }
   ],
   "points": [

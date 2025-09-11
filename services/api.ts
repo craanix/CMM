@@ -1,4 +1,4 @@
-import type { Region, Point, Machine, User, MaintenanceRecord, Part, AllData } from '../types';
+import type { Region, Point, Machine, User, MaintenanceRecord, Part, AllData, ImportSummary } from '../types';
 import { getCachedData, setCachedData, queueRequest } from './db';
 
 const API_BASE_URL = '/api'; // Using a relative URL for proxying
@@ -197,3 +197,50 @@ export const deleteEntity = async (entityType: EntityType, id: string): Promise<
     const url = `${API_BASE_URL}/${entityType}/${id}`;
     return handleMutation(url, 'DELETE', {});
 }
+
+// --- IMPORT/EXPORT FUNCTIONS ---
+export const exportEntities = async (entityType: EntityType): Promise<void> => {
+    const url = `${API_BASE_URL}/${entityType}/export`;
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: getHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error('Export failed');
+        }
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        
+        const disposition = response.headers.get('content-disposition');
+        let filename = `${entityType}_export.csv`;
+        if (disposition && disposition.includes('attachment')) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        alert('Не удалось экспортировать данные.');
+    }
+};
+
+export const importEntities = async (entityType: EntityType, csvData: string): Promise<ImportSummary> => {
+    const url = `${API_BASE_URL}/${entityType}/import`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ csvData }),
+    });
+    return handleResponse(response);
+};

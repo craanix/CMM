@@ -1,11 +1,10 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import * as api from '../../services/api';
 import type { Region, Point, Machine, User, MaintenanceRecord, Part } from '../../types';
 import { Role } from '../../types';
-import { FileText, Filter, Printer, RefreshCw, Calendar, User as UserIcon, MapPin, Building, Coffee as CoffeeIcon, Wrench } from 'lucide-react';
+import { FileText, Filter, Printer, RefreshCw, Calendar, User as UserIcon, MapPin, Building, Coffee as CoffeeIcon, Wrench, ChevronDown } from 'lucide-react';
 
 // Define a type for the combined data
 interface AllData {
@@ -23,6 +22,120 @@ interface PartsReportData {
     quantity: number;
 }
 
+// --- Reusable Searchable Dropdown Component ---
+
+interface Option {
+    id: string;
+    name: string;
+}
+
+interface SearchableDropdownProps {
+    label: string;
+    options: Option[];
+    selectedId: string;
+    onSelect: (id: string) => void;
+    placeholder?: string;
+    disabled?: boolean;
+}
+
+const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
+    label,
+    options,
+    selectedId,
+    onSelect,
+    placeholder = 'Выберите...',
+    disabled = false
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    const selectedOption = useMemo(() => options.find(opt => opt.id === selectedId), [options, selectedId]);
+
+    useEffect(() => {
+        setSearchTerm(selectedOption?.name || '');
+    }, [selectedOption]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+                setSearchTerm(selectedOption?.name || '');
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [wrapperRef, selectedOption]);
+
+    const filteredOptions = useMemo(() => {
+        if (searchTerm === selectedOption?.name) {
+             return options;
+        }
+        return options.filter(option =>
+            option.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [options, searchTerm, selectedOption]);
+
+    const handleSelect = (option: Option) => {
+        onSelect(option.id);
+        setSearchTerm(option.name);
+        setIsOpen(false);
+    };
+
+    const inputClasses = "block w-full pl-3 pr-10 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-brand-primary placeholder-gray-500 focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed";
+
+    return (
+        <div ref={wrapperRef} className="relative">
+            <label htmlFor={label} className="block text-sm font-medium text-brand-primary">{label}</label>
+            <div className="mt-1 relative">
+                <input
+                    id={label}
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        if (!isOpen) setIsOpen(true);
+                        if (e.target.value === '') {
+                           onSelect('');
+                        }
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    placeholder={placeholder}
+                    className={inputClasses}
+                    disabled={disabled}
+                    autoComplete="off"
+                />
+                 <button type="button" onClick={() => setIsOpen(!isOpen)} disabled={disabled} className="absolute inset-y-0 right-0 flex items-center pr-2">
+                    <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} aria-hidden="true" />
+                </button>
+            </div>
+
+            {isOpen && !disabled && (
+                <ul className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                    {filteredOptions.length > 0 ? (
+                        filteredOptions.map(option => (
+                            <li
+                                key={option.id}
+                                onClick={() => handleSelect(option)}
+                                className={`cursor-pointer select-none relative py-2 pl-3 pr-9 text-brand-primary hover:bg-brand-accent ${option.id === selectedId ? 'bg-brand-accent' : ''}`}
+                            >
+                                {option.name}
+                            </li>
+                        ))
+                    ) : (
+                        <li className="select-none relative py-2 px-4 text-gray-500">
+                            Ничего не найдено
+                        </li>
+                    )}
+                </ul>
+            )}
+        </div>
+    );
+};
+
+
 const ReportsScreen: React.FC = () => {
     const { user } = useAuth();
     const [allData, setAllData] = useState<AllData | null>(null);
@@ -33,15 +146,9 @@ const ReportsScreen: React.FC = () => {
         startDate: '',
         endDate: '',
         userId: '',
-        regionId: user?.role === Role.TECHNICIAN ? user.regionId || '' : '',
+        regionId: '',
         pointId: '',
         machineId: '',
-    });
-
-    const [searchTerms, setSearchTerms] = useState({
-        user: '',
-        point: '',
-        machine: '',
     });
     
     const [filteredRecords, setFilteredRecords] = useState<MaintenanceRecord[] | null>(null);
@@ -56,7 +163,6 @@ const ReportsScreen: React.FC = () => {
         const fetchData = async () => {
             if (user) {
                 setLoading(true);
-                // FIX: api.getAllDataForUser expects 0 arguments. User data is inferred from auth token on the server.
                 const result = await api.getAllDataForUser();
                 const allParts = await api.getAllParts();
                 setAllData({ ...result, parts: allParts });
@@ -87,18 +193,18 @@ const ReportsScreen: React.FC = () => {
 
     const { availableUsers, availableRegions, availablePoints, availableMachines } = useMemo(() => {
         if (!allData) return { availableUsers: [], availableRegions: [], availablePoints: [], availableMachines: [] };
-
-        const availableRegions = user?.role === Role.ADMIN ? allData.regions : allData.regions.filter(r => r.id === user?.regionId);
-        const effectiveRegionId = filters.regionId || (user?.role === Role.TECHNICIAN ? user.regionId : null);
+        
+        // For technicians, allData is pre-filtered by the API. For admins, it's all data.
+        const availableRegions = allData.regions;
 
         let availableUsers = allData.users.filter(u => u.role === Role.TECHNICIAN);
         let availablePoints = allData.points;
         let availableMachines = allData.machines;
-
-        if (effectiveRegionId) {
-            availableUsers = availableUsers.filter(u => u.regionId === effectiveRegionId);
-            availablePoints = availablePoints.filter(p => p.regionId === effectiveRegionId);
-            availableMachines = availableMachines.filter(m => m.regionId === effectiveRegionId);
+        
+        if (filters.regionId) {
+            availableUsers = availableUsers.filter(u => u.regions.some(r => r.id === filters.regionId));
+            availablePoints = availablePoints.filter(p => p.regionId === filters.regionId);
+            availableMachines = availableMachines.filter(m => m.regionId === filters.regionId);
         }
 
         if (filters.pointId) {
@@ -108,13 +214,9 @@ const ReportsScreen: React.FC = () => {
         return { availableUsers, availableRegions, availablePoints, availableMachines };
     }, [allData, user, filters.regionId, filters.pointId]);
 
-    useEffect(() => {
-        setSearchTerms({
-            user: getEntityName(filters.userId, 'user'),
-            point: getEntityName(filters.pointId, 'point'),
-            machine: getEntityName(filters.machineId, 'machine'),
-        });
-    }, [filters.userId, filters.pointId, filters.machineId, allData]);
+    const userOptions = useMemo(() => availableUsers.map(u => ({ id: u.id, name: u.name })), [availableUsers]);
+    const pointOptions = useMemo(() => availablePoints.map(p => ({ id: p.id, name: p.name })), [availablePoints]);
+    const machineOptions = useMemo(() => availableMachines.map(m => ({ id: m.id, name: `${m.name} (SN: ${m.serialNumber})` })), [availableMachines]);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -123,30 +225,9 @@ const ReportsScreen: React.FC = () => {
             if (name === 'regionId') {
                 newFilters.pointId = '';
                 newFilters.machineId = '';
+                newFilters.userId = '';
             }
-            return newFilters;
-        });
-    };
-    
-    const handleSearchableChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target; // name: 'user', 'point', 'machine'
-        
-        setSearchTerms(prev => ({ ...prev, [name]: value }));
-        
-        let foundId = '';
-        if (value === '') {
-             foundId = '';
-        } else if (name === 'user') {
-            foundId = availableUsers.find(u => u.name === value)?.id || '';
-        } else if (name === 'point') {
-            foundId = availablePoints.find(p => p.name === value)?.id || '';
-        } else if (name === 'machine') {
-            foundId = availableMachines.find(m => `${m.name} (SN: ${m.serialNumber})` === value)?.id || '';
-        }
-
-        setFilters(prev => {
-            const newFilters = { ...prev, [`${name}Id`]: foundId };
-            if (name === 'point' && prev.pointId !== foundId) {
+             if (name === 'pointId') {
                 newFilters.machineId = '';
             }
             return newFilters;
@@ -158,7 +239,6 @@ const ReportsScreen: React.FC = () => {
         setFilteredRecords(null);
         setPartsReportData(null);
 
-        // Filter records based on date and region, which are common to both report types
         let records = allData.maintenanceRecords;
         if (filters.startDate) {
             const startDate = new Date(`${filters.startDate}T00:00:00`);
@@ -170,13 +250,11 @@ const ReportsScreen: React.FC = () => {
         }
 
         if (partsOnlyReport) {
-            // Further filter records by region if selected for parts report
             if (filters.regionId) {
                 const machineIdsInRegion = new Set(allData.machines.filter(m => m.regionId === filters.regionId).map(m => m.id));
                 records = records.filter(r => machineIdsInRegion.has(r.machineId));
             }
             
-            // Aggregate parts
             const aggregatedParts = new Map<string, PartsReportData>();
             for (const record of records) {
                 for (const usedPart of record.usedParts) {
@@ -199,7 +277,6 @@ const ReportsScreen: React.FC = () => {
             setPartsReportData(sortedPartsReport);
 
         } else {
-            // Logic for standard maintenance report
             if (filters.userId) {
                 records = records.filter(r => r.userId === filters.userId);
             }
@@ -223,7 +300,7 @@ const ReportsScreen: React.FC = () => {
             startDate: '',
             endDate: '',
             userId: '',
-            regionId: user?.role === Role.TECHNICIAN ? user.regionId || '' : '',
+            regionId: '',
             pointId: '',
             machineId: '',
         });
@@ -260,9 +337,9 @@ const ReportsScreen: React.FC = () => {
             return `Фильтры: ${parts.join(', ')}`;
         }
         
-        if (filters.pointId) parts.push(`точка: "${searchTerms.point}"`);
-        if (filters.machineId) parts.push(`аппарат: "${searchTerms.machine}"`);
-        if (filters.userId) parts.push(`техник: "${searchTerms.user}"`);
+        if (filters.pointId) parts.push(`точка: "${getEntityName(filters.pointId, 'point')}"`);
+        if (filters.machineId) parts.push(`аппарат: "${getEntityName(filters.machineId, 'machine')}"`);
+        if (filters.userId) parts.push(`техник: "${getEntityName(filters.userId, 'user')}"`);
         
         if (parts.length === 0) return 'Показаны все записи';
     
@@ -302,36 +379,38 @@ const ReportsScreen: React.FC = () => {
                         <label htmlFor="partsOnly" className="ml-2 block text-sm font-medium text-brand-primary">Только запчасти</label>
                      </div>
 
-                    {user?.role === Role.ADMIN && (
-                        <div>
-                            <label htmlFor="regionId" className="block text-sm font-medium text-brand-primary">Регион</label>
-                            <select id="regionId" name="regionId" value={filters.regionId} onChange={handleFilterChange} className={inputClasses}>
-                                <option value="">Все регионы</option>
-                                {availableRegions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                            </select>
-                        </div>
-                    )}
                     <div>
-                        <label htmlFor="userInput" className="block text-sm font-medium text-brand-primary">Пользователь</label>
-                        <input id="userInput" name="user" list="userDatalist" value={searchTerms.user} onChange={handleSearchableChange} className={inputClasses} placeholder="Все пользователи" disabled={partsOnlyReport}/>
-                        <datalist id="userDatalist">
-                            {availableUsers.map(u => <option key={u.id} value={u.name}/>)}
-                        </datalist>
+                        <label htmlFor="regionId" className="block text-sm font-medium text-brand-primary">Регион</label>
+                        <select id="regionId" name="regionId" value={filters.regionId} onChange={handleFilterChange} className={inputClasses}>
+                            <option value="">Все регионы</option>
+                            {availableRegions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
                     </div>
-                    <div>
-                        <label htmlFor="pointInput" className="block text-sm font-medium text-brand-primary">Точка</label>
-                        <input id="pointInput" name="point" list="pointDatalist" value={searchTerms.point} onChange={handleSearchableChange} className={inputClasses} placeholder="Все точки" disabled={partsOnlyReport || (!filters.regionId && user?.role === Role.ADMIN)}/>
-                        <datalist id="pointDatalist">
-                             {availablePoints.map(p => <option key={p.id} value={p.name}/>)}
-                        </datalist>
-                    </div>
-                    <div>
-                        <label htmlFor="machineInput" className="block text-sm font-medium text-brand-primary">Аппарат</label>
-                         <input id="machineInput" name="machine" list="machineDatalist" value={searchTerms.machine} onChange={handleSearchableChange} className={inputClasses} placeholder="Все аппараты" disabled={partsOnlyReport || availableMachines.length === 0}/>
-                        <datalist id="machineDatalist">
-                             {availableMachines.map(m => <option key={m.id} value={`${m.name} (SN: ${m.serialNumber})`} />)}
-                        </datalist>
-                    </div>
+
+                    <SearchableDropdown
+                        label="Пользователь"
+                        options={userOptions}
+                        selectedId={filters.userId}
+                        onSelect={(id) => setFilters(prev => ({ ...prev, userId: id }))}
+                        placeholder="Все пользователи"
+                        disabled={partsOnlyReport}
+                    />
+                     <SearchableDropdown
+                        label="Точка"
+                        options={pointOptions}
+                        selectedId={filters.pointId}
+                        onSelect={(id) => handleFilterChange({ target: { name: 'pointId', value: id } } as any)}
+                        placeholder="Все точки"
+                        disabled={partsOnlyReport || (!filters.regionId && user?.role === Role.ADMIN && availableRegions.length > 1)}
+                    />
+                    <SearchableDropdown
+                        label="Аппарат"
+                        options={machineOptions}
+                        selectedId={filters.machineId}
+                        onSelect={(id) => setFilters(prev => ({ ...prev, machineId: id }))}
+                        placeholder="Все аппараты"
+                        disabled={partsOnlyReport || availableMachines.length === 0}
+                    />
                  </div>
                  <div className="flex flex-wrap gap-3 mt-6 justify-end">
                     <button onClick={handleClearFilters} className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold transition-colors">

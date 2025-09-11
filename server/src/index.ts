@@ -1,17 +1,11 @@
-// FIX: Import Request, Response, NextFunction directly from express to avoid type conflicts.
-// Switched to a default import for express and using express.Request etc. to resolve type conflicts.
-// FIX: Import Request, Response, NextFunction as named imports from express.
+// FIX: Use named imports for express types to resolve type issues.
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-// FIX: Using direct imports for PrismaClient and User to ensure correct type resolution.
-// Switched to namespace import for Prisma to resolve type errors.
-// FIX: Change namespace import to named imports for PrismaClient and types.
-import { PrismaClient, User } from '@prisma/client';
-// FIX: Import process to provide types for process.exit.
-// Removed import to rely on the global Node.js process type.
+// FIX: Use named imports for Prisma Client and types to resolve module resolution issues.
+import { PrismaClient, User, Region, MachineStatus } from '@prisma/client';
 
 // FIX: Add declaration for process to fix "Property 'exit' does not exist on type 'Process'" error.
 declare const process: any;
@@ -19,8 +13,6 @@ declare const process: any;
 dotenv.config();
 
 const app = express();
-// FIX: Instantiated PrismaClient from the direct import.
-// FIX: Instantiate PrismaClient directly from the import.
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -31,33 +23,30 @@ if (!JWT_SECRET) {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' })); // Increase limit for CSV data
 
 // Extend Express Request type
-// FIX: Extended the directly imported Request type and used the imported User type.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Changed to a type alias with an intersection to resolve issues with missing properties on AuthRequest.
-// FIX: Use named import 'Request' and 'User' for correct type extension.
 type AuthRequest = Request & {
-    user?: User;
+    user?: User & { regions: Region[] };
 };
 
 // Auth middleware
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response, NextFunction).
-const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ message: 'Authentication token required' });
     }
     const token = authHeader.split(' ')[1];
     try {
-        // FIX: Used the directly imported User type for casting.
-        // Switched to using namespaced types to avoid conflicts.
-        // FIX: Use imported User type.
-        const decoded = jwt.verify(token, JWT_SECRET) as User;
-        req.user = decoded;
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+        const user = await prisma.user.findUnique({ 
+            where: { id: decoded.id }, 
+            include: { regions: true } 
+        });
+        if (!user) {
+            return res.status(401).json({ message: 'User not found' });
+        }
+        req.user = user as User & { regions: Region[] };
         next();
     } catch (error) {
         return res.status(403).json({ message: 'Invalid or expired token' });
@@ -68,43 +57,38 @@ const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => 
 // --- ROUTES ---
 
 // AUTH
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Request, Response).
 app.post('/api/auth/login', async (req: Request, res: Response) => {
     const { login, password } = req.body;
     if (!login || !password) {
         return res.status(400).json({ message: 'Login and password are required' });
     }
-    const user = await prisma.user.findUnique({ where: { login } });
+    const user = await prisma.user.findUnique({ where: { login }, include: { regions: true } });
     if (!user || !await bcrypt.compare(password, user.password)) {
         return res.status(401).json({ message: 'Invalid credentials' });
     }
-    const userPayload = { id: user.id, name: user.name, login: user.login, role: user.role, regionId: user.regionId };
-    const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1d' });
+    const { password: _, ...userPayload } = user;
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, user: userPayload });
 });
 
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.get('/api/auth/me', authMiddleware, async (req: AuthRequest, res: Response) => {
-    const user = await prisma.user.findUnique({where: {id: req.user!.id}});
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    const { password, ...userWithoutPassword } = user;
+    const { password, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);
 });
 
 // GET ALL DATA
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => {
     const user = req.user!;
+    
+    const userSelect = { 
+        id: true, name: true, login: true, role: true, 
+        regions: { select: { id: true, name: true } } 
+    };
+
     if (user.role === 'ADMIN') {
         const [regions, users, points, machines, maintenanceRecords, parts] = await Promise.all([
             prisma.region.findMany(),
-            prisma.user.findMany({select: {id: true, name: true, login: true, role: true, regionId: true}}),
+            prisma.user.findMany({ select: userSelect }),
             prisma.point.findMany(),
             prisma.machine.findMany(),
             prisma.maintenanceRecord.findMany({ include: { usedParts: true } }),
@@ -113,13 +97,19 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
         return res.json({ regions, users, points, machines, maintenanceRecords, parts });
     }
 
-    if (user.role === 'TECHNICIAN' && user.regionId) {
-        const regionId = user.regionId;
+    if (user.role === 'TECHNICIAN') {
+        const regionIds = user.regions.map(r => r.id);
+        if (regionIds.length === 0) {
+            const users = await prisma.user.findMany({select: userSelect});
+            const parts = await prisma.part.findMany();
+            return res.json({ regions: [], points: [], machines: [], users, maintenanceRecords: [], parts });
+        }
+        
         const [regions, points, machines, users] = await Promise.all([
-            prisma.region.findMany({ where: { id: regionId } }),
-            prisma.point.findMany({ where: { regionId } }),
-            prisma.machine.findMany({ where: { regionId } }),
-            prisma.user.findMany({select: {id: true, name: true, login: true, role: true, regionId: true}}), // Still need all users for names
+            prisma.region.findMany({ where: { id: { in: regionIds } } }),
+            prisma.point.findMany({ where: { regionId: { in: regionIds } } }),
+            prisma.machine.findMany({ where: { regionId: { in: regionIds } } }),
+            prisma.user.findMany({select: userSelect}), // Still need all users for names
         ]);
         const machineIds = machines.map(m => m.id);
         const maintenanceRecords = await prisma.maintenanceRecord.findMany({ 
@@ -134,9 +124,6 @@ app.get('/api/data', authMiddleware, async (req: AuthRequest, res: Response) => 
 
 
 // GET MACHINE DETAILS
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const machine = await prisma.machine.findUnique({ where: { id } });
@@ -151,12 +138,11 @@ app.get('/api/machines/:id/details', authMiddleware, async (req: AuthRequest, re
 });
 
 // SYNC REGION DATA
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { id: regionId } = req.params;
     const user = req.user!;
 
-    if (user.role === 'TECHNICIAN' && user.regionId !== regionId) {
+    if (user.role === 'TECHNICIAN' && !user.regions.some(r => r.id === regionId)) {
         return res.status(403).json({ message: "Forbidden: You do not have access to this region." });
     }
     
@@ -177,20 +163,16 @@ app.get('/api/regions/:id/sync', authMiddleware, async (req: AuthRequest, res: R
 
 
 // GET ALL (for specific lists)
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.get('/api/parts', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.part.findMany()));
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
-app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.user.findMany({select: {id: true, name: true, login: true, role: true, regionId: true}})));
+app.get('/api/users', authMiddleware, async (req: AuthRequest, res: Response) => res.json(await prisma.user.findMany({
+    select: { 
+        id: true, name: true, login: true, role: true, 
+        regions: { select: { id: true, name: true } } 
+    }
+})));
 
 
 // ADD MAINTENANCE RECORD
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.post('/api/maintenanceRecords', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { machineId, description, usedParts, timestamp } = req.body;
     const newRecord = await prisma.maintenanceRecord.create({
@@ -222,9 +204,6 @@ const modelMapping: Record<EntityType, any> = {
     parts: prisma.part,
 };
 
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response, NextFunction) and AuthRequest.
 const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (req.user?.role !== 'ADMIN') {
         return res.status(403).json({ message: 'Admin access required' });
@@ -232,9 +211,125 @@ const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) =>
     next();
 };
 
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
+// --- IMPORT/EXPORT ROUTES ---
+const toCsv = (headers: string[], data: any[]): string => {
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+    for (const row of data) {
+        const values = headers.map(header => {
+            const val = row[header] === null || row[header] === undefined ? '' : row[header];
+            const escaped = ('' + val).replace(/"/g, '""');
+            return `"${escaped}"`;
+        });
+        csvRows.push(values.join(','));
+    }
+    return csvRows.join('\n');
+};
+
+const parseCsv = (csvString: string): Record<string, string>[] => {
+    const [headerLine, ...lines] = csvString.replace(/\r/g, "").trim().split('\n');
+    if (!headerLine) return [];
+    const headers = headerLine.split(',').map(h => h.trim());
+    return lines.map(line => {
+        // Basic parser, does not handle commas inside quotes.
+        const values = line.split(',');
+        return headers.reduce((obj, header, index) => {
+            obj[header] = values[index]?.trim();
+            return obj;
+        }, {} as Record<string, string>);
+    });
+};
+
+app.get('/api/:entityType/export', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
+    const { entityType } = req.params;
+    if (!['parts', 'points', 'machines'].includes(entityType)) {
+        return res.status(400).json({ message: 'Export not supported for this entity type' });
+    }
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${entityType}_export_${new Date().toISOString().split('T')[0]}.csv`);
+
+    try {
+        if (entityType === 'parts') {
+            const parts = await prisma.part.findMany();
+            res.status(200).send(toCsv(['sku', 'name'], parts));
+        } else if (entityType === 'points') {
+            const points = await prisma.point.findMany({ include: { region: true } });
+            const data = points.map(p => ({ name: p.name, address: p.address, region_name: p.region.name }));
+            res.status(200).send(toCsv(['name', 'address', 'region_name'], data));
+        } else if (entityType === 'machines') {
+            const machines = await prisma.machine.findMany({ include: { region: true, point: true } });
+            const data = machines.map(m => ({
+                serialNumber: m.serialNumber, name: m.name, status: m.status,
+                region_name: m.region.name, point_name: m.point?.name || ''
+            }));
+            res.status(200).send(toCsv(['serialNumber', 'name', 'status', 'region_name', 'point_name'], data));
+        }
+    } catch (error) {
+        console.error(`Export failed for ${entityType}:`, error);
+        res.status(500).send('Error generating export file.');
+    }
+});
+
+
+app.post('/api/:entityType/import', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+    const { entityType } = req.params;
+    const { csvData } = req.body;
+
+    if (!csvData) return res.status(400).json({ message: 'CSV data is required.' });
+    if (!['parts', 'points', 'machines'].includes(entityType)) {
+        return res.status(400).json({ message: 'Import not supported for this entity type' });
+    }
+
+    let created = 0, updated = 0;
+    const errors: string[] = [];
+    const records = parseCsv(csvData);
+
+    try {
+        if (entityType === 'parts') {
+            for (const [i, r] of records.entries()) {
+                if (!r.sku || !r.name) { errors.push(`Строка ${i + 2}: Отсутствуют sku или name.`); continue; }
+                const existing = await prisma.part.findUnique({ where: { sku: r.sku } });
+                if (existing) { await prisma.part.update({ where: { sku: r.sku }, data: { name: r.name }}); updated++; } 
+                else { await prisma.part.create({ data: { sku: r.sku, name: r.name }}); created++; }
+            }
+        } else if (entityType === 'points') {
+            const regionMap = new Map((await prisma.region.findMany()).map(reg => [reg.name.toLowerCase(), reg.id]));
+            for (const [i, r] of records.entries()) {
+                if (!r.name || !r.address || !r.region_name) { errors.push(`Строка ${i + 2}: Отсутствуют name, address, или region_name.`); continue; }
+                const regionId = regionMap.get(r.region_name.toLowerCase());
+                if (!regionId) { errors.push(`Строка ${i + 2}: Регион '${r.region_name}' не найден.`); continue; }
+                const existing = await prisma.point.findFirst({ where: { name: r.name, regionId } });
+                if (existing) { await prisma.point.update({ where: { id: existing.id }, data: { address: r.address } }); updated++; } 
+                else { await prisma.point.create({ data: { name: r.name, address: r.address, regionId } }); created++; }
+            }
+        } else if (entityType === 'machines') {
+            const regionMap = new Map((await prisma.region.findMany()).map(reg => [reg.name.toLowerCase(), reg.id]));
+            const pointMap = new Map((await prisma.point.findMany()).map(p => [`${p.name.toLowerCase()}|${p.regionId}`, p.id]));
+            for (const [i, r] of records.entries()) {
+                if (!r.serialNumber || !r.name || !r.status || !r.region_name) { errors.push(`Строка ${i + 2}: Отсутствуют обязательные поля.`); continue; }
+                if (!Object.values(MachineStatus).includes(r.status as MachineStatus)) { errors.push(`Строка ${i + 2}: Неверный статус '${r.status}'.`); continue; }
+                const regionId = regionMap.get(r.region_name.toLowerCase());
+                if (!regionId) { errors.push(`Строка ${i + 2}: Регион '${r.region_name}' не найден.`); continue; }
+                let pointId = null;
+                if (r.point_name) {
+                    pointId = pointMap.get(`${r.point_name.toLowerCase()}|${regionId}`);
+                    if (!pointId) { errors.push(`Строка ${i + 2}: Точка '${r.point_name}' не найдена в регионе '${r.region_name}'.`); continue; }
+                }
+                const data = { name: r.name, status: r.status as MachineStatus, regionId, pointId, serialNumber: r.serialNumber };
+                const existing = await prisma.machine.findUnique({ where: { serialNumber: r.serialNumber } });
+                if (existing) { await prisma.machine.update({ where: { serialNumber: r.serialNumber }, data }); updated++; } 
+                else { await prisma.machine.create({ data }); created++; }
+            }
+        }
+        res.status(200).json({ created, updated, errors });
+    } catch (error: any) {
+        console.error(`Import failed for ${entityType}:`, error);
+        res.status(500).json({ message: 'Internal server error', created, updated, errors: [...errors, error.message] });
+    }
+});
+
+
 app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
@@ -242,18 +337,25 @@ app.post('/api/:entityType', authMiddleware, adminMiddleware, async (req: AuthRe
     }
     const model = modelMapping[entityType as EntityType];
     
-    // Hash password for new user
-    if (entityType === 'users' && req.body.password) {
-        req.body.password = await bcrypt.hash(req.body.password, 10);
+    let data = req.body;
+
+    if (entityType === 'users') {
+        const { regionIds, ...userData } = data;
+        if (userData.password) {
+            userData.password = await bcrypt.hash(userData.password, 10);
+        }
+        data = {
+            ...userData,
+            regions: {
+                connect: regionIds?.map((id: string) => ({ id })) || []
+            }
+        };
     }
     
-    const newEntity = await model.create({ data: req.body });
+    const newEntity = await model.create({ data });
     res.status(201).json(newEntity);
 });
 
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {
@@ -261,29 +363,39 @@ app.put('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: Aut
     }
     const model = modelMapping[entityType as EntityType];
     
-    // Hash password if it's being updated
-    if (entityType === 'users' && req.body.password) {
-        req.body.password = await bcrypt.hash(req.body.password, 10);
-    } else if (entityType === 'users') {
-        // Prevent password from being overwritten with undefined
-        delete req.body.password;
+    let data = req.body;
+
+    if (entityType === 'users') {
+        const { regionIds, ...userData } = data;
+        if (userData.password) {
+            userData.password = await bcrypt.hash(userData.password, 10);
+        } else {
+            delete userData.password;
+        }
+        data = {
+            ...userData,
+            regions: {
+                set: regionIds?.map((id: string) => ({ id })) || []
+            }
+        };
     }
 
     try {
-        const updatedEntity = await model.update({ where: { id }, data: req.body });
-        // Don't send back password hash
+        const updatedEntity = await model.update({ 
+            where: { id }, 
+            data,
+            include: entityType === 'users' ? { regions: true } : undefined
+        });
         if (entityType === 'users') {
             delete (updatedEntity as any).password;
         }
         res.json(updatedEntity);
     } catch (error) {
+        console.error(error);
         res.status(404).json({ message: 'Entity not found' });
     }
 });
 
-// FIX: Typed request and response with the directly imported types.
-// Switched to using namespaced types to avoid conflicts.
-// FIX: Use named imports for Express types (Response) and AuthRequest.
 app.delete('/api/:entityType/:id', authMiddleware, adminMiddleware, async (req: AuthRequest, res: Response) => {
     const { entityType, id } = req.params;
     if (!entityTypes.includes(entityType as EntityType)) {

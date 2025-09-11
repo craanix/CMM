@@ -1,14 +1,18 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
-import type { Part } from '../../types';
-import { PlusCircle, Edit, Trash2, Search, AlertTriangle } from 'lucide-react';
+// FIX: Import ImportSummary directly from types
+import type { Part, ImportSummary } from '../../types';
+import { PlusCircle, Edit, Trash2, Search, AlertTriangle, Upload, Download } from 'lucide-react';
+import ImportModal from './ImportModal';
 
 const PartManagement: React.FC = () => {
     const [parts, setParts] = useState<Part[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [currentPart, setCurrentPart] = useState<Part | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [partToDelete, setPartToDelete] = useState<Part | null>(null);
@@ -69,6 +73,17 @@ const PartManagement: React.FC = () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [partToDelete, handleConfirmDelete]);
+    
+    const handleExport = async () => {
+        await api.exportEntities('parts');
+    };
+
+    // FIX: Changed api.ImportSummary to ImportSummary
+    const handleImport = async (csvData: string): Promise<ImportSummary> => {
+        const summary = await api.importEntities('parts', csvData);
+        fetchData(); // Refresh data after import
+        return summary;
+    };
 
 
     const filteredParts = useMemo(() => {
@@ -90,13 +105,21 @@ const PartManagement: React.FC = () => {
         <div className="p-4 sm:p-6 bg-white rounded-lg shadow">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-brand-primary">Управление запчастями</h2>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-semibold transition-colors shadow-sm"
-                >
-                    <PlusCircle className="w-5 h-5" />
-                    Добавить запчасть
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors shadow-sm text-sm">
+                        <Upload className="w-4 h-4" /> Импорт
+                    </button>
+                    <button onClick={handleExport} className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-colors shadow-sm text-sm">
+                        <Download className="w-4 h-4" /> Экспорт
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-semibold transition-colors shadow-sm text-sm"
+                    >
+                        <PlusCircle className="w-5 h-5" />
+                        Добавить запчасть
+                    </button>
+                </div>
             </div>
             <div className="mb-4 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -144,6 +167,15 @@ const PartManagement: React.FC = () => {
             </div>
 
             {isModalOpen && <PartModal part={currentPart} onSave={handleSavePart} onClose={handleCloseModal} />}
+
+            {isImportModalOpen && (
+                <ImportModal
+                    entityName="запчастей"
+                    csvHeaders={['sku', 'name']}
+                    onImport={handleImport}
+                    onClose={() => setIsImportModalOpen(false)}
+                />
+            )}
 
             {partToDelete && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 animate-fade-in">
