@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../../services/api';
 // FIX: Import ImportSummary directly from types
-import type { Point, Region, ImportSummary } from '../../types';
+import type { Point, Region } from '../../types';
+import { ImportSummary } from '../../types';
 import { PlusCircle, Edit, Trash2, Search, AlertTriangle, Upload, Download } from 'lucide-react';
 import ImportModal from './ImportModal';
 
