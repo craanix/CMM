@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // FIX: Import ImportSummary from types.ts where it is defined and exported.
-import type { ImportSummary } from '../../types';
+import { ImportSummary } from '../../types';
 import { Upload, X, Loader2, FileCheck2, AlertCircle } from 'lucide-react';
 
 interface ImportModalProps {
