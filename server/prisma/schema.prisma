@@ -11,6 +11,7 @@ datasource db {
 }
 
 // ENUMS
+
 enum Role {
   ADMIN
   TECHNICIAN
@@ -23,69 +24,74 @@ enum MachineStatus {
 }
 
 // MODELS
-model User {
-  id        String    @id @default(cuid())
-  name      String
-  login     String    @unique
-  password  String
-  role      Role
-  regionId  String?
-  region    Region?   @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  records   MaintenanceRecord[]
-}
 
 model Region {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  users     User[]
-  points    Point[]
-  machines  Machine[]
+  id       String    @id @default(cuid())
+  name     String    @unique
+  users    User[]
+  points   Point[]
+  machines Machine[]
 }
 
-model Point {
-  id        String    @id @default(cuid())
-  name      String
-  address   String
-  regionId  String
-  region    Region    @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  machines  Machine[]
-}
-
-model Machine {
-  id                String              @id @default(cuid())
-  name              String
-  serialNumber      String              @unique
-  regionId          String
-  region            Region              @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  pointId           String?
-  point             Point?              @relation(fields: [pointId], references: [id], onDelete: SetNull)
-  status            MachineStatus
+model User {
+  id                 String              @id @default(cuid())
+  name               String
+  login              String              @unique
+  password           String
+  role               Role
+  regionId           String?
+  region             Region?             @relation(fields: [regionId], references: [id], onDelete: SetNull)
   maintenanceRecords MaintenanceRecord[]
 }
 
+model Point {
+  id       String    @id @default(cuid())
+  name     String
+  address  String
+  regionId String
+  region   Region    @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  machines Machine[]
+  phones   Json      @default("[]")
+}
+
+model Machine {
+  id                  String              @id @default(cuid())
+  name                String
+  serialNumber        String              @unique
+  regionId            String
+  region              Region              @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  pointId             String?
+  point               Point?              @relation(fields: [pointId], references: [id], onDelete: SetNull)
+  status              MachineStatus       @default(OK)
+  serviceIntervalDays Int                 @default(90)
+  maintenanceRecords  MaintenanceRecord[]
+}
+
 model Part {
-  id        String      @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  sku       String      @unique
-  usedIn    UsedPart[]
+  sku       String     @unique
+  usedParts UsedPart[]
 }
 
 model MaintenanceRecord {
-  id          String      @id @default(cuid())
+  id          String     @id @default(cuid())
   machineId   String
-  machine     Machine     @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  machine     Machine    @relation(fields: [machineId], references: [id], onDelete: Cascade)
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  timestamp   DateTime    @default(now())
-  description String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timestamp   DateTime   @default(now())
+  description String     @db.Text
   usedParts   UsedPart[]
 }
 
 model UsedPart {
   id                  String            @id @default(cuid())
-  partId              String
-  part                Part              @relation(fields: [partId], references: [id], onDelete: Cascade)
-  quantity            Int
   maintenanceRecordId String
   maintenanceRecord   MaintenanceRecord @relation(fields: [maintenanceRecordId], references: [id], onDelete: Cascade)
+  partId              String
+  part                Part              @relation(fields: [partId], references: [id], onDelete: Restrict)
+  quantity            Int
+
+  @@unique([maintenanceRecordId, partId])
 }
